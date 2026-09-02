@@ -2,7 +2,7 @@ name: Radar - coletar dados e publicar site
 
 on:
   schedule:
-    - cron: '7 * * * *'      # toda hora, no minuto 7 (horário UTC)
+    - cron: '7,22,37,52 * * * *' # a cada 15 minutos (horário UTC)
   workflow_dispatch:         # botão "Run workflow" pra rodar na mão
   push:
     branches: [main]         # também roda quando você mudar algo no site/config

@@ -1,5 +1,5 @@
 // Papanoobhy Radar — coletor de dados do Roblox
-// Roda de hora em hora no GitHub Actions. Não precisa de nenhuma dependência (só Node 20+).
+// Roda a cada 15 minutos no GitHub Actions. Não precisa de nenhuma dependência (só Node 20+).
 //
 // Uso:  node collector/collect.mjs            -> coleta de verdade
 //       node collector/collect.mjs --mock     -> gera dados falsos pra testar o site sem internet
@@ -7,20 +7,22 @@
 // Saída (pasta data/):
 //   latest.json          -> todos os jogos vistos nesta rodada + métricas calculadas
 //   platform.json        -> série histórica do total de jogadores online (dos jogos rastreados)
-//   history/<universe>.json -> histórico por jogo (por hora nos últimos 14 dias + por dia pra sempre)
+//   history/<universe>.json -> histórico por jogo (a cada 15 min nos últimos 14 dias + por dia pra sempre)
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = path.join(ROOT, 'data');
 const HIST_DIR = path.join(DATA_DIR, 'history');
 const CONFIG = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'my_games.json'), 'utf8'));
 const MOCK = process.argv.includes('--mock');
 
 const HOUR = 3600 * 1000;
+const SAMPLE_INTERVAL = 15 * 60 * 1000;
 const DAY = 24 * HOUR;
-const KEEP_HOURLY_DAYS = 14;
+const KEEP_DETAILED_DAYS = 14;
 
 const SORTS = ['top-playing-now', 'up-and-coming', 'top-trending', 'top-revisited', 'fun-with-friends'];
 const DEVICES = ['computer', 'high_end_phone', 'console'];
@@ -152,13 +154,13 @@ async function fetchIcons(ids) {
 function loadHistory(u) { return readJSON(path.join(HIST_DIR, `${u}.json`), { u, h: [], d: [] }); }
 
 function pushPoint(hist, ts, playing, visits, favs) {
-  // evita duplicar se rodar duas vezes na mesma hora
+  // evita duplicar se o workflow rodar duas vezes no mesmo bloco de 15 minutos
   const last = hist.h[hist.h.length - 1];
-  if (last && ts - last[0] < 20 * 60 * 1000) hist.h[hist.h.length - 1] = [ts, playing, visits, favs];
+  if (last && ts === last[0]) hist.h[hist.h.length - 1] = [ts, playing, visits, favs];
   else hist.h.push([ts, playing, visits, favs]);
 
   // compacta pontos velhos em resumo diário
-  const cutoff = ts - KEEP_HOURLY_DAYS * DAY;
+  const cutoff = ts - KEEP_DETAILED_DAYS * DAY;
   const old = hist.h.filter(p => p[0] < cutoff);
   if (old.length) {
     hist.h = hist.h.filter(p => p[0] >= cutoff);
@@ -247,7 +249,7 @@ function mockData(now) {
 // ---------- principal ----------
 async function main() {
   const now = Date.now();
-  const nowRounded = Math.round(now / HOUR) * HOUR;
+  const nowRounded = Math.floor(now / SAMPLE_INTERVAL) * SAMPLE_INTERVAL;
   fs.mkdirSync(HIST_DIR, { recursive: true });
 
   let listed, details, votes, icons, mine;
@@ -294,7 +296,7 @@ async function main() {
   // série da plataforma
   const platform = readJSON(path.join(DATA_DIR, 'platform.json'), { h: [] });
   const lastP = platform.h[platform.h.length - 1];
-  if (lastP && nowRounded - lastP[0] < 20 * 60 * 1000) platform.h[platform.h.length - 1] = [nowRounded, platformCCU, games.length];
+  if (lastP && nowRounded === lastP[0]) platform.h[platform.h.length - 1] = [nowRounded, platformCCU, games.length];
   else platform.h.push([nowRounded, platformCCU, games.length]);
   platform.h = platform.h.filter(p => p[0] > nowRounded - 400 * DAY);
   writeJSON(path.join(DATA_DIR, 'platform.json'), platform);

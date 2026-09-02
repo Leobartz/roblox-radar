@@ -99,7 +99,7 @@
   </div>
   <div class="tablewrap"><table id="tbl"></table></div>
 </main>
-<footer>Dados públicos da API do Roblox, coletados de hora em hora. Crescimento = média de jogadores online no período comparada com o período anterior. Feito com 🐱 pelo Lucas.</footer>
+<footer>Dados públicos da API do Roblox, coletados a cada 15 minutos. Crescimento = média de jogadores online no período comparada com o período anterior. Feito com 🐱 pelo Lucas.</footer>
 
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 
@@ -233,12 +233,13 @@ async function platformChart(){
 async function openGame(u){
   const g = DATA.games.find(x=>x.u===u); if(!g) return;
   const h = await (await fetch(`data/history/${u}.json?t=`+Date.now())).json().catch(()=>({h:[],d:[]}));
+  const histDays = h.h.length > 1 ? Math.min(14, Math.max(1, Math.ceil((h.h[h.h.length-1][0]-h.h[0][0])/864e5))) : 1;
   $('#modal').innerHTML = `
     <div class="head">${g.icon?`<img src="${g.icon}" alt="">`:''}<div><h2>${esc(g.name)}</h2><div class="muted">${esc(g.creator)}${g.verified?' ✓':''} · ${esc(g.genre||'')}${g.genre2?' / '+esc(g.genre2):''} · criado em ${new Date(g.created).toLocaleDateString('pt-BR')} · <a target="_blank" rel="noopener" href="https://www.roblox.com/games/${g.p}">abrir no Roblox ↗</a></div></div><button class="close" id="closeM">✕</button></div>
     <div class="stats">
       ${[['Online agora',fmt(g.playing)],['Média 24h',fmt(g.avg24)],['Pico 24h',fmt(g.peak24)],['Pico 7d',fmt(g.peak7)],['Cresc. 24h',pct(g.g24)],['Cresc. 7d',pct(g.g7)],['Visitas',fmtK(g.visits)],['Visitas/24h',fmtK(g.visits24)],['Visitas/7d',fmtK(g.visits7)],['Favoritos',fmtK(g.favs)],['Favoritos/24h',g.favs24==null?'—':(g.favs24>=0?'+':'')+fmt(g.favs24)],['👍 aprovação',g.likeRatio==null?'—':g.likeRatio+'%'],['Máx. por servidor',g.maxPlayers],['Idade',age(g.ageDays)]].map(([k,v])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}
     </div>
-    <div class="card"><h3>Jogadores online por hora (últimos ${Math.min(14, Math.max(1, Math.ceil(h.h.length/24)))} dias)</h3><div class="chartbox"><canvas id="gameChart"></canvas></div><div class="legendnote">${h.h.length<3?'Ainda poucos pontos — o gráfico enche conforme o radar coleta de hora em hora.':''}</div></div>
+    <div class="card"><h3>Jogadores online a cada 15 minutos (últimos ${histDays} dias)</h3><div class="chartbox"><canvas id="gameChart"></canvas></div><div class="legendnote">${h.h.length<3?'Ainda poucos pontos — o gráfico enche conforme o radar coleta a cada 15 minutos.':''}</div></div>
     ${h.d.length ? `<div class="card" style="margin-top:10px"><h3>Pico diário de jogadores (histórico longo)</h3><div class="chartbox" style="height:200px"><canvas id="dayChart"></canvas></div></div>` : ''}
     <div class="legendnote">Listas do Roblox onde aparece: ${g.lists.length? g.lists.map(l=>`<span class="chip">${DATA.sortLabels[l]||l}${g.ranks[l]?' #'+g.ranks[l]:''}</span>`).join(' ') : '<span class="muted">nenhuma (rastreado por ser seu)</span>'}</div>`;
   $('#overlay').classList.add('on');

@@ -1,6 +1,6 @@
 # 🐸 Papanoobhy Radar
 
-Seu próprio "Creator Exchange": um site que coleta dados públicos do Roblox de hora em hora
+Seu próprio "Creator Exchange": um site que coleta dados públicos do Roblox a cada 15 minutos
 e mostra os jogos mais jogados, os que estão subindo, as promessas, os estáveis e os seus jogos,
 com gráficos de histórico. Roda de graça no GitHub (Actions + Pages), sem servidor, sem cartão.
 
@@ -21,7 +21,7 @@ com gráficos de histórico. Roda de graça no GitHub (Actions + Pages), sem ser
 6. **Rode a primeira vez**: aba **Actions** → "Radar - coletar dados e publicar site" → botão **Run workflow**.
    Em uns 2 minutos o site aparece em `https://SEU-USUARIO.github.io/roblox-radar/`.
 
-A partir daí ele roda sozinho toda hora. Os rankings do momento já funcionam na primeira rodada;
+A partir daí ele roda sozinho a cada 15 minutos. Os rankings do momento já funcionam na primeira rodada;
 as colunas de crescimento aparecem depois de 24–48h de histórico, e as de 7 dias depois de 2 semanas.
 
 ## Acompanhar os seus jogos
@@ -48,10 +48,10 @@ O ID do usuário/grupo está na URL do perfil: `roblox.com/users/111111/profile`
   ("Mais jogados", "Em ascensão", "Tendência", "Mais revisitados", "Com amigos") em computador,
   celular e console, pega detalhes de cada um (online, visitas, favoritos, likes, data de criação)
   e guarda o histórico.
-- `.github/workflows/radar.yml` — o despertador. Roda o robô toda hora, guarda os dados numa
+- `.github/workflows/radar.yml` — o despertador. Roda o robô a cada 15 minutos, guarda os dados numa
   branch chamada `data` (sempre substituída, pra não inchar o repositório) e publica o site.
 - `site/index.html` — o site. Lê os JSONs e monta rankings e gráficos. Tudo em um arquivo só.
-- Histórico: por hora nos últimos 14 dias; depois disso, um resumo por dia (pico, média, visitas) pra sempre.
+- Histórico: a cada 15 minutos nos últimos 14 dias; depois disso, um resumo por dia (pico, média, visitas) pra sempre.
 
 ### O que o Roblox NÃO conta pra ninguém
 Receita (Robux) e tempo de jogo de jogos dos outros não são públicos. Sites como o Creator Exchange
