@@ -24,6 +24,11 @@ com gráficos de histórico. Roda de graça no GitHub (Actions + Pages), sem ser
 A partir daí ele roda sozinho a cada 15 minutos. Os rankings do momento já funcionam na primeira rodada;
 as colunas de crescimento aparecem depois de 24–48h de histórico, e as de 7 dias depois de 2 semanas.
 
+O sinal **Explodindo** começa a calibrar depois de cerca de 2 horas. Ele exige pelo menos 10% e
+500 jogadores de alta em 1 hora, com crescimento persistente, e combina aceleração, participação
+de mercado, avanço nas prateleiras e aprovação. **Novos no radar** mostra entradas e reentradas nas
+prateleiras monitoradas depois da calibração inicial.
+
 ## Acompanhar os seus jogos
 
 Edite `config/my_games.json` (no GitHub mesmo: clique no arquivo → lápis ✏️ → Commit):
