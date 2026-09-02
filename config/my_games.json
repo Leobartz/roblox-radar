@@ -1,0 +1,11 @@
+{
+  "_ajuda": "Coloque aqui os jogos que você quer acompanhar de perto. Pode usar o link do jogo, o placeId ou o universeId. Também pode colocar o ID do seu usuário e do grupo do estúdio: todos os jogos deles entram automaticamente.",
+  "jogos": [
+  ],
+  "usuarios": [
+    4239977028
+  ],
+  "grupos": [
+    638770882
+  ]
+}

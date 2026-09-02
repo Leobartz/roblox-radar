@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Papanoobhy Radar</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐸</text></svg>">
+<script src="chart.umd.js"></script>
+<style>
+  :root{
+    --bg:#0f1117;--bg2:#161a23;--bg3:#1e2330;--line:#2a3040;--ink:#e8ebf2;--ink2:#a0a8ba;--ink3:#6b7386;
+    --accent:#4fd1c5;--accent2:#7aa2ff;--up:#3fcf8e;--down:#ff6b6b;--warn:#f6c75c;--chip:#242a38;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:var(--accent2);text-decoration:none}
+  header{padding:22px 20px 10px;max-width:1240px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .brand h1{margin:0;font-size:24px;letter-spacing:.2px}
+  .brand h1 span{color:var(--accent)}
+  .brand .upd{color:var(--ink3);font-size:13px;margin-left:auto}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+  .tile{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
+  .tile .k{color:var(--ink3);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .tile .v{font-size:22px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+  .tile .s{font-size:12px;color:var(--ink2)}
+  .card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .card h3{margin:0 0 6px;font-size:14px;color:var(--ink2);font-weight:500}
+  main{max-width:1240px;margin:0 auto;padding:0 20px 60px}
+  nav{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 10px}
+  nav button{background:var(--bg3);border:1px solid var(--line);color:var(--ink2);padding:8px 14px;border-radius:999px;cursor:pointer;font-size:13px}
+  nav button.on{background:var(--accent);color:#06221f;border-color:var(--accent);font-weight:600}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .filters input,.filters select{background:var(--bg3);border:1px solid var(--line);color:var(--ink);padding:8px 10px;border-radius:8px;font-size:13px}
+  .filters input{min-width:220px;flex:1}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:var(--bg3);border:0;color:var(--ink2);padding:7px 10px;cursor:pointer;font-size:12px}
+  .seg button.on{background:var(--chip);color:var(--ink)}
+  .hint{color:var(--ink3);font-size:13px;margin:6px 0 12px}
+  .notice{background:#1f2a3a;border:1px solid #2f4360;color:#cfe0ff;padding:10px 12px;border-radius:10px;margin:8px 0 12px;font-size:13px}
+  table{width:100%;border-collapse:collapse}
+  th{color:var(--ink3);font-weight:500;font-size:12px;text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+  th.l,td.l{text-align:left}
+  th.sorted{color:var(--accent)}
+  td{padding:7px 8px;border-bottom:1px solid #1c2130;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tr.g{cursor:pointer}
+  tr.g:hover td{background:#1a1f2b}
+  .rank{color:var(--ink3);width:34px}
+  .game{display:flex;align-items:center;gap:10px;min-width:220px;max-width:420px}
+  .game img,.game .ph{width:36px;height:36px;border-radius:8px;background:var(--bg3);flex:none;object-fit:cover}
+  .game .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:330px}
+  .game .c{color:var(--ink3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:330px}
+  .badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:600}
+  .badge.up{background:rgba(63,207,142,.15);color:var(--up)}
+  .badge.down{background:rgba(255,107,107,.15);color:var(--down)}
+  .badge.flat{background:var(--chip);color:var(--ink2)}
+  .chip{display:inline-block;background:var(--chip);color:var(--ink2);padding:2px 7px;border-radius:6px;font-size:11px;margin-left:4px}
+  .chip.mine{background:rgba(79,209,197,.18);color:var(--accent)}
+  .muted{color:var(--ink3)}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg2)}
+  .empty{padding:30px;text-align:center;color:var(--ink2)}
+  .empty code{background:var(--bg3);padding:2px 6px;border-radius:6px}
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;padding:30px 12px;overflow:auto;z-index:10}
+  .overlay.on{display:flex}
+  .modal{background:var(--bg2);border:1px solid var(--line);border-radius:16px;width:min(900px,100%);padding:18px}
+  .modal .head{display:flex;gap:14px;align-items:center}
+  .modal .head img{width:64px;height:64px;border-radius:12px}
+  .modal h2{margin:0;font-size:20px}
+  .modal .close{margin-left:auto;background:var(--bg3);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:14px 0}
+  .stats .tile .v{font-size:18px}
+  .chartbox{position:relative;height:260px}
+  .legendnote{font-size:12px;color:var(--ink3);margin-top:6px}
+  footer{max-width:1240px;margin:0 auto;padding:20px;color:var(--ink3);font-size:12px}
+  @media (max-width:700px){ .hide-m{display:none} header{padding:14px 12px 6px} main{padding:0 12px 40px} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div style="font-size:30px">🐸</div>
+    <h1>Papanoobhy <span>Radar</span></h1>
+    <div class="upd" id="upd">carregando…</div>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="card"><h3>Jogadores online nos jogos rastreados (soma do "Mais jogados")</h3><div class="chartbox" style="height:170px"><canvas id="platChart"></canvas></div></div>
+</header>
+<main>
+  <nav id="nav"></nav>
+  <div class="hint" id="hint"></div>
+  <div class="notice" id="notice" style="display:none"></div>
+  <div class="filters">
+    <input id="q" placeholder="Buscar jogo ou criador…">
+    <select id="genre"><option value="">Todos os gêneros</option></select>
+    <div class="seg" id="period"><button data-p="24" class="on">24h</button><button data-p="7">7 dias</button></div>
+    <select id="limit"><option value="50">Top 50</option><option value="100">Top 100</option><option value="1000">Todos</option></select>
+  </div>
+  <div class="tablewrap"><table id="tbl"></table></div>
+</main>
+<footer>Dados públicos da API do Roblox, coletados de hora em hora. Crescimento = média de jogadores online no período comparada com o período anterior. Feito com 🐱 pelo Lucas.</footer>
+
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = n => n == null ? '—' : new Intl.NumberFormat('pt-BR').format(Math.round(n));
+const fmtK = n => n == null ? '—' : n >= 1e9 ? (n/1e9).toFixed(2)+' bi' : n >= 1e6 ? (n/1e6).toFixed(1)+' mi' : n >= 1e4 ? (n/1e3).toFixed(0)+' mil' : fmt(n);
+const pct = v => v == null ? '<span class="muted">—</span>' : `<span class="badge ${v>2?'up':v<-2?'down':'flat'}">${v>0?'+':''}${v.toLocaleString('pt-BR')}%</span>`;
+const age = d => d < 1 ? 'hoje' : d < 30 ? d+' d' : d < 365 ? Math.round(d/30)+' m' : (d/365).toFixed(1)+' a';
+const dateBR = ts => new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let DATA, view = 'top', period = 24, sortKey = null, sortDir = -1;
+const VIEWS = [
+  ['top','🔥 Top agora'],['visits','👣 Mais visitados'],['rising','🚀 Subindo'],['promise','🌱 Promessas'],['stable','🏛️ Estáveis'],['mine','⭐ Meus jogos'],['all','📚 Todos']
+];
+const HINTS = {
+  top:'Jogos com mais gente online agora mesmo.',
+  visits:'Jogos com mais visitas na história. "Visitas/24h" mostra quem está recebendo mais gente hoje.',
+  rising:'Jogos cuja média de jogadores online mais cresceu em relação ao período anterior (mínimo de 200 jogadores de média).',
+  promise:'Jogos novos (até 60 dias) que já têm gente jogando. Pontuação = jogadores por dia de vida × crescimento. Fique de olho: podem ser o próximo hit! 👀',
+  stable:'Jogos com mais de 1 ano, mais de 1.000 jogadores e variação pequena. Os "clássicos que não morrem".',
+  mine:'Seus jogos e os do estúdio, configurados em config/my_games.json.',
+  all:'Todos os jogos rastreados. Clique em qualquer coluna pra ordenar e em um jogo pra ver o gráfico.',
+};
+
+async function load(){
+  const r = await fetch('data/latest.json?t='+Date.now());
+  DATA = await r.json();
+  DATA.games.forEach(g => { g.likeRatio = (g.up+g.dn) > 0 ? Math.round(g.up/(g.up+g.dn)*100) : null; });
+  $('#upd').textContent = 'atualizado ' + dateBR(DATA.updatedAt) + (DATA.mock ? ' · DADOS DE TESTE' : '');
+  const genres = [...new Set(DATA.games.map(g=>g.genre).filter(Boolean))].sort();
+  $('#genre').innerHTML = '<option value="">Todos os gêneros</option>' + genres.map(g=>`<option>${esc(g)}</option>`).join('');
+  const hours = Math.round((DATA.updatedAt - DATA.firstRun)/36e5);
+  const rising = DATA.games.filter(g=>g.g24!=null).sort((a,b)=>b.g24-a.g24)[0];
+  const newest = DATA.games.filter(g=>g.ageDays<=60).sort((a,b)=>b.playing-a.playing)[0];
+  $('#tiles').innerHTML = [
+    ['Online agora', fmt(DATA.platformCCU), 'soma dos mais jogados'],
+    ['Jogos rastreados', fmt(DATA.games.length), `${DATA.games.filter(g=>g.mine).length} seus`],
+    ['Maior alta 24h', rising ? esc(rising.name) : '—', rising ? `+${rising.g24}% · ${fmtK(rising.playing)} online` : 'aguardando 48h de dados'],
+    ['Novato em destaque', newest ? esc(newest.name) : '—', newest ? `${age(newest.ageDays)} de vida · ${fmtK(newest.playing)} online` : ''],
+    ['Radar ativo há', hours < 48 ? hours+' h' : Math.round(hours/24)+' dias', `${DATA.runs} coletas`],
+  ].map(([k,v,s])=>`<div class="tile"><div class="k">${k}</div><div class="v" style="font-size:${v.length>18?15:22}px">${v}</div><div class="s">${s}</div></div>`).join('');
+  if (hours < 48) { $('#notice').style.display='block'; $('#notice').textContent = `O radar começou há ${hours}h. As colunas de crescimento e visitas/24h aparecem conforme o histórico se forma (24h para visitas, 48h para crescimento em 24h, 14 dias para o de 7 dias). Enquanto isso, os rankings do momento já funcionam!`; }
+  $('#nav').innerHTML = VIEWS.map(([k,l])=>`<button data-v="${k}" class="${k===view?'on':''}">${l}</button>`).join('');
+  $('#nav').onclick = e => { const b=e.target.closest('button'); if(!b) return; view=b.dataset.v; sortKey=null; document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('on',x===b)); render(); };
+  $('#period').onclick = e => { const b=e.target.closest('button'); if(!b) return; period=+b.dataset.p; document.querySelectorAll('#period button').forEach(x=>x.classList.toggle('on',x===b)); render(); };
+  ['#q','#genre','#limit'].forEach(s=>$(s).oninput = render);
+  platformChart();
+  render();
+}
+
+function gKey(){ return period===24?'g24':'g7'; }
+function vKey(){ return period===24?'visits24':'visits7'; }
+
+function selectGames(){
+  let gs = DATA.games.slice();
+  const q = $('#q').value.trim().toLowerCase(); const ge = $('#genre').value;
+  if (q) gs = gs.filter(g => g.name.toLowerCase().includes(q) || g.creator.toLowerCase().includes(q));
+  if (ge) gs = gs.filter(g => g.genre === ge);
+  const gk = gKey();
+  switch(view){
+    case 'top': gs.sort((a,b)=>b.playing-a.playing); break;
+    case 'visits': gs.sort((a,b)=>b.visits-a.visits); break;
+    case 'rising': gs = gs.filter(g=>g[gk]!=null && (g.avg24??0)>=200).sort((a,b)=>b[gk]-a[gk]); break;
+    case 'promise': gs = gs.filter(g=>g.ageDays<=60 && g.playing>=300).map(g=>({...g, score: Math.round(g.playing/(g.ageDays+3)*(1+Math.max(-0.5,(g.g24??0)/100)))})).sort((a,b)=>b.score-a.score); break;
+    case 'stable': gs = gs.filter(g=>g.ageDays>=365 && g.playing>=1000 && (g.g7==null || Math.abs(g.g7)<15)).sort((a,b)=>b.playing-a.playing); break;
+    case 'mine': gs = gs.filter(g=>g.mine).sort((a,b)=>b.playing-a.playing); break;
+    case 'all': gs.sort((a,b)=>b.playing-a.playing); break;
+  }
+  if (sortKey) gs.sort((a,b)=>{ const x=a[sortKey], y=b[sortKey]; if(x==null) return 1; if(y==null) return -1; return (x<y?-1:x>y?1:0)*sortDir; });
+  return gs.slice(0, +$('#limit').value);
+}
+
+const COLS = [
+  {k:'name', l:'Jogo', left:true},
+  {k:'genre', l:'Gênero', cls:'hide-m', f:g=>`<span class="muted">${esc(g.genre||'—')}</span>`},
+  {k:'playing', l:'Online', f:g=>`<b>${fmt(g.playing)}</b>`},
+  {k:'peak24', l:'Pico 24h', cls:'hide-m', f:g=>fmt(g.peak24)},
+  {k:'__g', l:'Cresc.', f:g=>pct(g[gKey()])},
+  {k:'visits', l:'Visitas', f:g=>fmtK(g.visits)},
+  {k:'__v', l:'Visitas/', f:g=>fmtK(g[vKey()])},
+  {k:'likeRatio', l:'👍', cls:'hide-m', f:g=>g.likeRatio==null?'—':g.likeRatio+'%'},
+  {k:'ageDays', l:'Idade', f:g=>age(g.ageDays)},
+  {k:'score', l:'Pontos', only:'promise', f:g=>`<b>${fmt(g.score)}</b>`},
+];
+
+function render(){
+  $('#hint').textContent = HINTS[view];
+  const gs = selectGames();
+  const cols = COLS.filter(c=>!c.only || c.only===view).map(c=>({...c, k: c.k==='__g'?gKey():c.k==='__v'?vKey():c.k, l: c.k==='__v'?('Visitas/'+(period===24?'24h':'7d')):c.k==='__g'?('Cresc. '+(period===24?'24h':'7d')):c.l}));
+  if (!gs.length){
+    let msg = 'Nenhum jogo aqui ainda.';
+    if (view==='mine') msg = 'Nenhum jogo seu configurado ainda. Abra o arquivo <code>config/my_games.json</code> no GitHub e cole os links dos seus jogos (ou o ID do seu usuário / do grupo Papanoobhy). Na próxima coleta eles aparecem aqui. 🐱';
+    else if (view==='rising') msg = 'Ainda não há histórico suficiente pra calcular crescimento. Volte em algumas horas! ⏳';
+    $('#tbl').innerHTML = `<tr><td class="empty l">${msg}</td></tr>`; return;
+  }
+  const head = '<tr><th class="rank">#</th>' + cols.map(c=>`<th class="${c.left?'l ':''}${c.cls||''} ${sortKey===c.k?'sorted':''}" data-k="${c.k}">${c.l}${sortKey===c.k?(sortDir<0?' ↓':' ↑'):''}</th>`).join('') + '</tr>';
+  const rows = gs.map((g,i)=>`<tr class="g" data-u="${g.u}"><td class="rank">${i+1}</td>` + cols.map(c=>{
+    if (c.left) return `<td class="l"><div class="game">${g.icon?`<img src="${g.icon}" loading="lazy" alt="">`:'<div class="ph"></div>'}<div><div class="n">${esc(g.name)}${g.mine?'<span class="chip mine">meu</span>':''}${g.lists.includes('up-and-coming')?'<span class="chip">🌱 roblox</span>':''}</div><div class="c">${esc(g.creator)}${g.verified?' ✓':''}</div></div></div></td>`;
+    return `<td class="${c.cls||''}">${c.f(g)}</td>`;
+  }).join('') + '</tr>').join('');
+  $('#tbl').innerHTML = head + rows;
+  $('#tbl').querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { const k=th.dataset.k; if (k==='name') return; if (sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=-1; } render(); });
+  $('#tbl').querySelectorAll('tr.g').forEach(tr => tr.onclick = () => openGame(+tr.dataset.u));
+}
+
+// ---------- gráficos ----------
+Chart.defaults.color = '#a0a8ba'; Chart.defaults.borderColor = '#2a3040'; Chart.defaults.font.family = 'system-ui, sans-serif';
+const lineOpts = (labelsFn, pts) => ({
+  responsive:true, maintainAspectRatio:false, animation:false,
+  interaction:{mode:'index', intersect:false},
+  plugins:{legend:{display:false}, tooltip:{callbacks:{title: items => labelsFn(items[0].parsed.x), label: it => ' '+fmt(it.parsed.y)+' jogadores'}}},
+  scales:{x:{type:'linear', min: xRange(pts).min, max: xRange(pts).max, ticks:{maxTicksLimit:8, callback:v=>labelsFn(v)}, grid:{display:false}}, y:{beginAtZero:true, ticks:{callback:v=>fmtK(v)}, grid:{color:'#1c2130'}}}
+});
+function xRange(pts){
+  if (!pts || !pts.length) return {};
+  const last = pts[pts.length-1].x, first = pts[0].x;
+  if (pts.length < 3 || last - first < 6*36e5) return { min: last - 24*36e5, max: last + 36e5 };
+  return { min: first, max: last };
+}
+let platC, gameC;
+async function platformChart(){
+  const p = await (await fetch('data/platform.json?t='+Date.now())).json();
+  const cut = Date.now() - 7*864e5;
+  let pts = p.h.map(x=>({x:x[0], y:x[1]})); if (pts.filter(q=>q.x>=cut).length >= 3) pts = pts.filter(q=>q.x>=cut);
+  platC?.destroy();
+  platC = new Chart($('#platChart'), { type:'line', data:{datasets:[{data:pts, borderColor:'#4fd1c5', backgroundColor:'rgba(79,209,197,.12)', fill:true, borderWidth:2, pointRadius:pts.length<60?3:0, pointHoverRadius:5, tension:.25}]}, options: lineOpts(dateBR, pts) });
+}
+
+async function openGame(u){
+  const g = DATA.games.find(x=>x.u===u); if(!g) return;
+  const h = await (await fetch(`data/history/${u}.json?t=`+Date.now())).json().catch(()=>({h:[],d:[]}));
+  $('#modal').innerHTML = `
+    <div class="head">${g.icon?`<img src="${g.icon}" alt="">`:''}<div><h2>${esc(g.name)}</h2><div class="muted">${esc(g.creator)}${g.verified?' ✓':''} · ${esc(g.genre||'')}${g.genre2?' / '+esc(g.genre2):''} · criado em ${new Date(g.created).toLocaleDateString('pt-BR')} · <a target="_blank" rel="noopener" href="https://www.roblox.com/games/${g.p}">abrir no Roblox ↗</a></div></div><button class="close" id="closeM">✕</button></div>
+    <div class="stats">
+      ${[['Online agora',fmt(g.playing)],['Média 24h',fmt(g.avg24)],['Pico 24h',fmt(g.peak24)],['Pico 7d',fmt(g.peak7)],['Cresc. 24h',pct(g.g24)],['Cresc. 7d',pct(g.g7)],['Visitas',fmtK(g.visits)],['Visitas/24h',fmtK(g.visits24)],['Visitas/7d',fmtK(g.visits7)],['Favoritos',fmtK(g.favs)],['Favoritos/24h',g.favs24==null?'—':(g.favs24>=0?'+':'')+fmt(g.favs24)],['👍 aprovação',g.likeRatio==null?'—':g.likeRatio+'%'],['Máx. por servidor',g.maxPlayers],['Idade',age(g.ageDays)]].map(([k,v])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}
+    </div>
+    <div class="card"><h3>Jogadores online por hora (últimos ${Math.min(14, Math.max(1, Math.ceil(h.h.length/24)))} dias)</h3><div class="chartbox"><canvas id="gameChart"></canvas></div><div class="legendnote">${h.h.length<3?'Ainda poucos pontos — o gráfico enche conforme o radar coleta de hora em hora.':''}</div></div>
+    ${h.d.length ? `<div class="card" style="margin-top:10px"><h3>Pico diário de jogadores (histórico longo)</h3><div class="chartbox" style="height:200px"><canvas id="dayChart"></canvas></div></div>` : ''}
+    <div class="legendnote">Listas do Roblox onde aparece: ${g.lists.length? g.lists.map(l=>`<span class="chip">${DATA.sortLabels[l]||l}${g.ranks[l]?' #'+g.ranks[l]:''}</span>`).join(' ') : '<span class="muted">nenhuma (rastreado por ser seu)</span>'}</div>`;
+  $('#overlay').classList.add('on');
+  $('#closeM').onclick = closeModal;
+  gameC?.destroy();
+  const pts = h.h.map(x=>({x:x[0], y:x[1]}));
+  gameC = new Chart($('#gameChart'), { type:'line', data:{datasets:[{data:pts, borderColor:'#7aa2ff', backgroundColor:'rgba(122,162,255,.12)', fill:true, borderWidth:2, pointRadius:pts.length<60?3:0, pointHoverRadius:5, tension:.25}]}, options: lineOpts(dateBR, pts) });
+  if (h.d.length){
+    const dp = h.d.map(x=>({x:Date.parse(x[0]), y:x[1]}));
+    new Chart($('#dayChart'), { type:'line', data:{datasets:[{data:dp, borderColor:'#4fd1c5', borderWidth:2, pointRadius:2, tension:.2}]}, options: lineOpts(ts=>new Date(ts).toLocaleDateString('pt-BR'), dp) });
+  }
+}
+function closeModal(){ $('#overlay').classList.remove('on'); }
+$('#overlay').onclick = e => { if (e.target === $('#overlay')) closeModal(); };
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
+
+load().catch(e => { $('#upd').textContent = 'erro ao carregar dados'; console.error(e); });
+</script>
+</body>
+</html>
