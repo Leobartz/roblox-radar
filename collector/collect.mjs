@@ -249,6 +249,30 @@ function metrics(hist, now, platform) {
   const visits7 = visitsGained(7 * DAY);
   const favs24 = (() => { const pts = inWindow(now - DAY, now + SAMPLE_INTERVAL); return pts.length >= 2 ? pts[pts.length - 1][3] - pts[0][3] : null; })();
 
+  // Estimativa de duração média da sessão (Lei de Little): jogadores-minuto / novas visitas.
+  // Usa o maior sufixo contínuo disponível, limitado a 24h, e exige ao menos 1h para reduzir ruído.
+  const playtimeEstimate = (() => {
+    const candidates = inWindow(now - DAY, now + SAMPLE_INTERVAL);
+    if (candidates.length < 2) return { avgPlaytimeMin: null, playtimeWindowHours: null };
+    let start = candidates.length - 1;
+    while (start > 0 && candidates[start][0] - candidates[start - 1][0] <= SAMPLE_INTERVAL * 2) start--;
+    const pts = candidates.slice(start);
+    const span = pts[pts.length - 1][0] - pts[0][0];
+    if (pts.length < 5 || span < HOUR) return { avgPlaytimeMin: null, playtimeWindowHours: null };
+    const newVisits = pts[pts.length - 1][2] - pts[0][2];
+    if (newVisits < 5) return { avgPlaytimeMin: null, playtimeWindowHours: null };
+    let playerMinutes = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const minutes = (pts[i][0] - pts[i - 1][0]) / 60000;
+      playerMinutes += ((pts[i - 1][1] + pts[i][1]) / 2) * minutes;
+    }
+    const minutes = playerMinutes / newVisits;
+    return {
+      avgPlaytimeMin: Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 10) / 10 : null,
+      playtimeWindowHours: Math.round(span / HOUR * 10) / 10,
+    };
+  })();
+
   return {
     avg24: avg(last24) != null ? Math.round(avg(last24)) : null,
     peak24: peak(last24),
@@ -258,7 +282,7 @@ function metrics(hist, now, platform) {
     shareG1, shareG6,
     g24: pct(w24.currentAvg, w24.previousAvg),    // crescimento % (média 24h vs 24h anteriores)
     g7: pct(w7.currentAvg, w7.previousAvg),       // crescimento % (média 7d vs 7d anteriores)
-    visits24, visits7, favs24,
+    visits24, visits7, favs24, ...playtimeEstimate,
     samples: h.length,
     firstSeen: h.length ? h[0][0] : (hist.d.length ? Date.parse(hist.d[0][0]) : null),
   };

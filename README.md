@@ -60,7 +60,9 @@ O ID do usuário/grupo está na URL do perfil: `roblox.com/users/111111/profile`
 
 ### O que o Roblox NÃO conta pra ninguém
 Receita (Robux) e tempo de jogo de jogos dos outros não são públicos. Sites como o Creator Exchange
-mostram *estimativas*. Aqui a gente mostra só dados reais — e o crescimento é calculado a partir deles.
+mostram *estimativas*. O radar identifica claramente o **Playtime est.**, calculado como
+`jogadores-minuto observados ÷ novas visitas` em uma janela contínua de até 24 horas (mínimo de 1 hora).
+As demais métricas são dados públicos ou cálculos feitos diretamente a partir deles.
 
 ## Problemas comuns
 

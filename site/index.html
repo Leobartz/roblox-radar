@@ -99,7 +99,7 @@
   </div>
   <div class="tablewrap"><table id="tbl"></table></div>
 </main>
-<footer>Dados públicos da API do Roblox, coletados a cada 15 minutos. Crescimento = média de jogadores online no período comparada com o período anterior. Feito com 🐱 pelo Lucas.</footer>
+<footer>Dados públicos da API do Roblox, coletados a cada 15 minutos. Crescimento = média de jogadores online no período comparada com o período anterior. Playtime est. = jogadores-minuto ÷ novas visitas na janela observada; não é uma métrica oficial do Roblox. Feito com 🐱 pelo Lucas.</footer>
 
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 
@@ -107,6 +107,7 @@
 const $ = s => document.querySelector(s);
 const fmt = n => n == null ? '—' : new Intl.NumberFormat('pt-BR').format(Math.round(n));
 const fmtK = n => n == null ? '—' : n >= 1e9 ? (n/1e9).toFixed(2)+' bi' : n >= 1e6 ? (n/1e6).toFixed(1)+' mi' : n >= 1e4 ? (n/1e3).toFixed(0)+' mil' : fmt(n);
+const duration = n => n == null ? '<span class="muted">—</span>' : n < 60 ? `${n.toLocaleString('pt-BR',{maximumFractionDigits:1})} min` : `${(n/60).toLocaleString('pt-BR',{maximumFractionDigits:1})} h`;
 const pct = v => v == null ? '<span class="muted">—</span>' : `<span class="badge ${v>2?'up':v<-2?'down':'flat'}">${v>0?'+':''}${v.toLocaleString('pt-BR')}%</span>`;
 const age = d => d < 1 ? 'hoje' : d < 30 ? d+' d' : d < 365 ? Math.round(d/30)+' m' : (d/365).toFixed(1)+' a';
 const dateBR = ts => new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -231,6 +232,7 @@ const COLS = [
   {k:'name', l:'Jogo', left:true},
   {k:'genre', l:'Gênero', cls:'hide-m', f:g=>`<span class="muted">${esc(g.genre||'—')}</span>`},
   {k:'playing', l:'Online', f:g=>`<b>${fmt(g.playing)}</b>`},
+  {k:'avgPlaytimeMin', l:'Playtime est.', cls:'hide-m', f:g=>duration(g.avgPlaytimeMin)},
   {k:'peak24', l:'Pico 24h', cls:'hide-m', f:g=>fmt(g.peak24)},
   {k:'__g', l:'Cresc.', f:g=>pct(g[gKey()])},
   {k:'visits', l:'Visitas', f:g=>fmtK(g.visits)},
@@ -309,7 +311,7 @@ async function openGame(u){
   $('#modal').innerHTML = `
     <div class="head">${g.icon?`<img src="${g.icon}" alt="">`:''}<div><h2>${esc(g.name)}</h2><div class="muted">${esc(g.creator)}${g.verified?' ✓':''} · ${esc(g.genre||'')}${g.genre2?' / '+esc(g.genre2):''} · criado em ${new Date(g.created).toLocaleDateString('pt-BR')} · <a target="_blank" rel="noopener" href="https://www.roblox.com/games/${g.p}">abrir no Roblox ↗</a></div></div><button class="close" id="closeM">✕</button></div>
     <div class="stats">
-      ${[['Online agora',fmt(g.playing)],['Cresc. 15 min',pct(g.g15)],['Cresc. 1h',pct(g.g1)],['Ganho 1h',g.gain1==null?'—':(g.gain1>=0?'+':'')+fmt(g.gain1)],['Cresc. 6h',pct(g.g6)],['Persistência',g.persistence==null?'—':g.persistence+'%'],['Participação',g.share==null?'—':g.share.toLocaleString('pt-BR',{maximumFractionDigits:3})+'%'],['Índice de explosão',fmt(g.explosionScore)],['Prateleiras',fmt(g.shelfBreadth)],['Melhor posição',g.bestRank==null?'—':'#'+fmt(g.bestRank)],['Avanço no ranking',g.rankDelta==null?'—':(g.rankDelta>0?'+':'')+fmt(g.rankDelta)],['Média 24h',fmt(g.avg24)],['Pico 24h',fmt(g.peak24)],['Pico 7d',fmt(g.peak7)],['Cresc. 24h',pct(g.g24)],['Cresc. 7d',pct(g.g7)],['Visitas',fmtK(g.visits)],['Visitas/24h',fmtK(g.visits24)],['Visitas/7d',fmtK(g.visits7)],['Favoritos',fmtK(g.favs)],['Favoritos/24h',g.favs24==null?'—':(g.favs24>=0?'+':'')+fmt(g.favs24)],['👍 aprovação',g.likeRatio==null?'—':g.likeRatio+'%'],['Máx. por servidor',g.maxPlayers],['Idade',age(g.ageDays)]].map(([k,v])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}
+      ${[['Online agora',fmt(g.playing)],['Playtime estimado',duration(g.avgPlaytimeMin)],['Janela do playtime',g.playtimeWindowHours==null?'—':g.playtimeWindowHours.toLocaleString('pt-BR',{maximumFractionDigits:1})+' h'],['Cresc. 15 min',pct(g.g15)],['Cresc. 1h',pct(g.g1)],['Ganho 1h',g.gain1==null?'—':(g.gain1>=0?'+':'')+fmt(g.gain1)],['Cresc. 6h',pct(g.g6)],['Persistência',g.persistence==null?'—':g.persistence+'%'],['Participação',g.share==null?'—':g.share.toLocaleString('pt-BR',{maximumFractionDigits:3})+'%'],['Índice de explosão',fmt(g.explosionScore)],['Prateleiras',fmt(g.shelfBreadth)],['Melhor posição',g.bestRank==null?'—':'#'+fmt(g.bestRank)],['Avanço no ranking',g.rankDelta==null?'—':(g.rankDelta>0?'+':'')+fmt(g.rankDelta)],['Média 24h',fmt(g.avg24)],['Pico 24h',fmt(g.peak24)],['Pico 7d',fmt(g.peak7)],['Cresc. 24h',pct(g.g24)],['Cresc. 7d',pct(g.g7)],['Visitas',fmtK(g.visits)],['Visitas/24h',fmtK(g.visits24)],['Visitas/7d',fmtK(g.visits7)],['Favoritos',fmtK(g.favs)],['Favoritos/24h',g.favs24==null?'—':(g.favs24>=0?'+':'')+fmt(g.favs24)],['👍 aprovação',g.likeRatio==null?'—':g.likeRatio+'%'],['Máx. por servidor',g.maxPlayers],['Idade',age(g.ageDays)]].map(([k,v])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}
     </div>
     <div class="card"><h3>Jogadores online a cada 15 minutos (últimos ${histDays} dias)</h3><div class="chartbox"><canvas id="gameChart"></canvas></div><div class="legendnote">${h.h.length<3?'Ainda poucos pontos — o gráfico enche conforme o radar coleta a cada 15 minutos.':''}</div></div>
     ${h.d.length ? `<div class="card" style="margin-top:10px"><h3>Pico diário de jogadores (histórico longo)</h3><div class="chartbox" style="height:200px"><canvas id="dayChart"></canvas></div></div>` : ''}
