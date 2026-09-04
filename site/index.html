@@ -170,7 +170,8 @@ function updateNotice(){
   const notice = $('#notice');
   let message = '';
   const any = key => DATA.games.some(g => g[key] != null);
-  if (view === 'burst' && !(DATA.cadence?.explosionReady || any('g1'))) {
+  const burstReady = DATA.cadence?.explosionReady || DATA.games.some(g => g.g1 != null && g.persistence != null);
+  if (view === 'burst' && !burstReady) {
     const samples = DATA.cadence?.samples2h;
     message = `“Explodindo” está calibrando: ${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}. São necessárias coletas regulares para comparar as duas janelas de 1h.`;
   } else if (view === 'new') {
