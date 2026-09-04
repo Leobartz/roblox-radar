@@ -122,7 +122,7 @@ const HINTS = {
   new:'Jogos que apareceram ou reapareceram nas prateleiras monitoradas do Roblox nas últimas 24 horas.',
   visits:'Jogos com mais visitas na história. "Visitas/24h" mostra quem está recebendo mais gente hoje.',
   rising:'Jogos cuja média de jogadores online mais cresceu em relação ao período anterior (mínimo de 200 jogadores de média).',
-  promise:'Jogos novos (até 60 dias) que já têm gente jogando. Pontuação = jogadores por dia de vida × crescimento. Fique de olho: podem ser o próximo hit! 👀',
+  promise:'Jogos de até 60 dias com 300–50 mil online, menos de 50 milhões de visitas e aprovação mínima de 80%. Hits já consolidados ficam de fora.',
   stable:'Jogos com mais de 1 ano, mais de 1.000 jogadores e variação pequena. Os "clássicos que não morrem".',
   mine:'Seus jogos e os do estúdio, configurados em config/my_games.json.',
   all:'Todos os jogos rastreados. Clique em qualquer coluna pra ordenar e em um jogo pra ver o gráfico.',
@@ -166,6 +166,18 @@ function isNewOnRadar(g){
   return !!g.shelfNew || (seenAt != null && seenAt > DATA.firstRun && seenAt >= DATA.updatedAt - 864e5);
 }
 
+function isPromise(g){
+  return g.ageDays <= 60 && g.playing >= 300 && g.playing < 50000
+    && g.visits < 50000000 && (g.likeRatio == null || g.likeRatio >= 80);
+}
+
+function promiseScore(g){
+  const growth = g.g24 == null ? 1 : Math.max(.5, Math.min(3, 1 + g.g24 / 100));
+  const quality = g.likeRatio == null ? 1 : .7 + .3 * g.likeRatio / 100;
+  const shelfSignal = 1 + Math.min(g.shelfBreadth || 0, 5) * .05;
+  return Math.round(g.playing / (g.ageDays + 3) * growth * quality * shelfSignal);
+}
+
 function updateNotice(){
   const notice = $('#notice');
   let message = '';
@@ -201,7 +213,7 @@ function selectGames(){
     case 'new': gs = gs.filter(isNewOnRadar).sort((a,b)=>(b.shelfNewAt??b.firstSeen??0)-(a.shelfNewAt??a.firstSeen??0) || b.playing-a.playing); break;
     case 'visits': gs.sort((a,b)=>b.visits-a.visits); break;
     case 'rising': gs = gs.filter(g=>g[gk]!=null && (g.avg24??0)>=200).sort((a,b)=>b[gk]-a[gk]); break;
-    case 'promise': gs = gs.filter(g=>g.ageDays<=60 && g.playing>=300).map(g=>({...g, score: Math.round(g.playing/(g.ageDays+3)*(1+Math.max(-0.5,(g.g24??0)/100)))})).sort((a,b)=>b.score-a.score); break;
+    case 'promise': gs = gs.filter(isPromise).map(g=>({...g, score:promiseScore(g)})).sort((a,b)=>b.score-a.score); break;
     case 'stable': gs = gs.filter(g=>g.ageDays>=365 && g.playing>=1000 && g.g7!=null && Math.abs(g.g7)<15).sort((a,b)=>b.playing-a.playing); break;
     case 'mine': gs = gs.filter(g=>g.mine).sort((a,b)=>b.playing-a.playing); break;
     case 'all': gs.sort((a,b)=>b.playing-a.playing); break;
@@ -248,6 +260,7 @@ function render(){
     }
     else if (view==='new') msg = 'Nenhum jogo apareceu ou reapareceu nas prateleiras nas últimas 24 horas. 🛰️';
     else if (view==='rising') msg = period===24 ? 'O crescimento de 24h estará disponível após cerca de 48 horas de histórico. ⏳' : 'O crescimento de 7 dias estará disponível após cerca de 14 dias de histórico. ⏳';
+    else if (view==='promise') msg = 'Nenhum jogo atende agora aos critérios de promessa: até 60 dias, entre 300 e 50 mil online, menos de 50 milhões de visitas e ao menos 80% de aprovação. 🌱';
     else if (view==='stable') msg = 'A classificação de estabilidade estará disponível após cerca de 14 dias de histórico. 🏛️';
     $('#tbl').innerHTML = `<tr><td class="empty l">${msg}</td></tr>`; return;
   }
