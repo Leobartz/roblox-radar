@@ -15,7 +15,7 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
   a{color:var(--accent2);text-decoration:none}
-  header{padding:22px 20px 10px;max-width:1240px;margin:0 auto}
+  header{padding:22px 20px 10px;max-width:1800px;margin:0 auto}
   .brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .brand h1{margin:0;font-size:24px;letter-spacing:.2px}
   .brand h1 span{color:var(--accent)}
@@ -27,7 +27,7 @@
   .tile .s{font-size:12px;color:var(--ink2)}
   .card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
   .card h3{margin:0 0 6px;font-size:14px;color:var(--ink2);font-weight:500}
-  main{max-width:1240px;margin:0 auto;padding:0 20px 60px}
+  main{max-width:1800px;margin:0 auto;padding:0 20px 60px}
   nav{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 10px}
   nav button{background:var(--bg3);border:1px solid var(--line);color:var(--ink2);padding:8px 14px;border-radius:999px;cursor:pointer;font-size:13px}
   nav button.on{background:var(--accent);color:#06221f;border-color:var(--accent);font-weight:600}
@@ -99,7 +99,7 @@
   .stats .tile .v{font-size:18px}
   .chartbox{position:relative;height:260px}
   .legendnote{font-size:12px;color:var(--ink3);margin-top:6px}
-  footer{max-width:1240px;margin:0 auto;padding:20px;color:var(--ink3);font-size:12px}
+  footer{max-width:1800px;margin:0 auto;padding:20px;color:var(--ink3);font-size:12px}
   @media (max-width:700px){ .hide-m{display:none} header{padding:14px 12px 6px} main{padding:0 12px 40px} }
 </style>
 </head>
@@ -138,6 +138,7 @@ const duration = n => n == null ? '<span class="muted">—</span>' : n < 60 ? `$
 const pct = v => v == null ? '<span class="muted">—</span>' : `<span class="badge ${v>2?'up':v<-2?'down':'flat'}">${v>0?'+':''}${v.toLocaleString('pt-BR')}%</span>`;
 const age = d => d < 1 ? 'hoje' : d < 30 ? d+' d' : d < 365 ? Math.round(d/30)+' m' : (d/365).toFixed(1)+' a';
 const dateBR = ts => new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const dateOnly = ts => ts ? new Date(ts).toLocaleDateString('pt-BR') : '—';
 const since = ts => { if(!ts)return ''; const h=Math.max(0,Math.round((DATA.updatedAt-ts)/36e5)); return h<24?`${h} h atrás`:`${Math.round(h/24)} d atrás`; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -292,6 +293,7 @@ const COLS = [
   {k:'visits', l:'Visitas', f:g=>fmtK(g.visits)},
   {k:'__v', l:'Visitas/', f:g=>fmtK(g[vKey()])},
   {k:'likeRatio', l:'👍', cls:'hide-m', f:g=>g.likeRatio==null?'—':g.likeRatio+'%'},
+  {k:'created', l:'Lançamento', f:g=>dateOnly(g.created)},
   {k:'ageDays', l:'Idade', f:g=>age(g.ageDays)},
   {k:'burstGain', l:'Ganho', only:'burst', f:g=>`<b>${g.burstGain>0?'+':''}${fmt(g.burstGain)}</b>`},
   {k:'burstStage', l:'Janela', only:'burst', f:g=>`<span class="badge ${g.burstPreliminary?'flat':'up'}">${g.burstPreliminary?'pré-sinal · ':''}${g.burstStage}</span>`},
@@ -339,7 +341,7 @@ function render(){
     return `<td class="${c.cls||''}">${c.f(g)}</td>`;
   }).join('') + '</tr>').join('');
   $('#tbl').innerHTML = head + rows;
-  $('#tbl').querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { const k=th.dataset.k; if (k==='name') return; if (sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=-1; } render(); });
+  $('#tbl').querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { const k=th.dataset.k; if (k==='name') return; if (sortKey===k) sortKey=null; else { sortKey=k; sortDir=-1; } render(); });
   $('#tbl').querySelectorAll('tr.g').forEach(tr => tr.onclick = () => openGame(+tr.dataset.u));
 }
 
@@ -409,7 +411,7 @@ function renderTrends(){
   </div><div class="trend-grid">${rows.map(x=>`<article class="trend-card">
     <div class="trend-head"><div><div class="trend-name">${esc(x.name)}</div><div class="muted">${fmt(x.games.length)} jogos · ${fmtK(x.ccu)} online</div></div><div class="trend-score">${fmt(x.score)}</div></div>
     <div class="thumb-meta">${pct(x.growth)} <span class="chip">${x.newCount} novos</span><span class="chip">${x.promises} promessas</span><span class="chip">pico ${fmtK(x.maxCcu)}</span></div>
-    <div class="trend-games">${x.games.slice(0,4).map(g=>`<span class="trend-game" data-u="${g.u}" style="cursor:pointer">${esc(g.name)} · ${fmtK(g.playing)}</span>`).join('<br>')}</div>
+    <div class="trend-games">${x.games.slice(0,4).map(g=>`<span class="trend-game" data-u="${g.u}" style="cursor:pointer">${esc(g.name)} · ${fmtK(g.playing)} · lançado ${dateOnly(g.created)}</span>`).join('<br>')}</div>
   </article>`).join('')}</div>`;
   $('#special').querySelectorAll('[data-u]').forEach(el=>el.onclick=()=>openGame(+el.dataset.u));
 }
@@ -438,7 +440,7 @@ async function renderThumbnails(){
   const gs=filteredGames().filter(g=>g.thumbnail||g.icon).sort((a,b)=>momentumScore(b)-momentumScore(a)).slice(0,+$('#limit').value);
   const shown=gs.slice(0,30);
   $('#special').innerHTML=`<div class="insight-grid" id="thumbInsights"><div class="insight"><div class="muted">Analisando a amostra visual…</div><div class="big">${fmt(shown.length)} thumbs</div><div class="muted">cor, brilho, saturação e contraste</div></div></div><div class="thumb-grid">${shown.map(g=>{
-    const gr=growthOf(g); return `<article class="thumb-card" data-u="${g.u}"><img crossorigin="anonymous" loading="lazy" src="${g.thumbnail||g.icon}" alt="Thumbnail de ${esc(g.name)}"><div class="thumb-body"><div class="thumb-title">${esc(g.name)}</div><div class="muted">${esc(g.creator)}</div><div class="thumb-meta"><b>${fmtK(g.playing)} online</b>${pct(gr.value)}<span class="chip">${esc(gr.window)}</span><span class="chip">pico ${fmtK(g.maxCcu)}</span>${g.thumbnailChangedAt?`<span class="chip">thumb mudou ${since(g.thumbnailChangedAt)}</span>`:''}</div><div class="thumb-meta visual-tags" data-u="${g.u}"><span class="muted">analisando…</span></div></div></article>`;
+    const gr=growthOf(g); return `<article class="thumb-card" data-u="${g.u}"><img crossorigin="anonymous" loading="lazy" src="${g.thumbnail||g.icon}" alt="Thumbnail de ${esc(g.name)}"><div class="thumb-body"><div class="thumb-title">${esc(g.name)}</div><div class="muted">${esc(g.creator)} · lançado ${dateOnly(g.created)}</div><div class="thumb-meta"><b>${fmtK(g.playing)} online</b>${pct(gr.value)}<span class="chip">${esc(gr.window)}</span><span class="chip">pico ${fmtK(g.maxCcu)}</span>${g.thumbnailChangedAt?`<span class="chip">thumb mudou ${since(g.thumbnailChangedAt)}</span>`:''}</div><div class="thumb-meta visual-tags" data-u="${g.u}"><span class="muted">analisando…</span></div></div></article>`;
   }).join('')}</div>`;
   $('#special').querySelectorAll('.thumb-card').forEach(el=>el.onclick=()=>openGame(+el.dataset.u));
   const analyses=await Promise.all(shown.map(g=>analyzeThumbnail(g.thumbnail||g.icon)));
