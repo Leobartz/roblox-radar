@@ -2,7 +2,7 @@ name: Radar - coletar dados
 
 on:
   schedule:
-    - cron: '7,22,37,52 * * * *' # a cada 15 minutos (horário UTC)
+    - cron: '11 * * * *'          # contingência; o Cloudflare dispara a cada 15 minutos
   workflow_dispatch:         # botão "Run workflow" pra rodar na mão
   push:
     branches: [main]         # também roda quando você mudar algo no site/config

@@ -16,7 +16,37 @@ export default {
 
     return serveRadar(request, url);
   },
+
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(dispatchCollection(env));
+  },
 };
+
+async function dispatchCollection(env) {
+  if (!env.GITHUB_ACTIONS_TOKEN) {
+    throw new Error("GITHUB_ACTIONS_TOKEN não configurado");
+  }
+
+  const response = await fetch(
+    "https://api.github.com/repos/Leobartz/roblox-radar/actions/workflows/radar.yml/dispatches",
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${env.GITHUB_ACTIONS_TOKEN}`,
+        "Content-Type": "application/json",
+        "User-Agent": "Papanoobhy-Radar-Scheduler",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      body: JSON.stringify({ ref: "main" }),
+    },
+  );
+
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300);
+    throw new Error(`GitHub workflow dispatch falhou (${response.status}): ${detail}`);
+  }
+}
 
 function configured(env) {
   return Boolean(

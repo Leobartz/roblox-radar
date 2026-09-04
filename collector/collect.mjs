@@ -376,12 +376,21 @@ async function main() {
   }
   games.sort((a, b) => b.playing - a.playing);
 
+  const cadencePoints = platform.h.filter(p => p[0] >= nowRounded - 2 * HOUR);
+  const cadenceGaps = cadencePoints.slice(1).map((p, i) => p[0] - cadencePoints[i][0]);
+  const cadence = {
+    samples2h: cadencePoints.length,
+    targetSamples2h: 9,
+    maxGapMinutes: cadenceGaps.length ? Math.round(Math.max(...cadenceGaps) / 60000) : null,
+    explosionReady: games.some(g => g.g1 != null && g.gain1 != null && g.persistence != null),
+  };
+
   meta.runs++; meta.lastRun = nowRounded;
   writeJSON(path.join(DATA_DIR, 'meta.json'), meta);
 
   writeJSON(path.join(DATA_DIR, 'latest.json'), {
     updatedAt: nowRounded, runs: meta.runs, firstRun: meta.firstRun, mock: MOCK,
-    sortLabels: SORT_LABEL, platformCCU, games,
+    sortLabels: SORT_LABEL, platformCCU, cadence, games,
   });
   log(`pronto: ${games.length} jogos, CCU total ${platformCCU}`);
 }

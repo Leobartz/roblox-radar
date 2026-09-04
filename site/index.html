@@ -138,16 +138,19 @@ async function load(){
   const hours = Math.round((DATA.updatedAt - DATA.firstRun)/36e5);
   const rising = DATA.games.filter(g=>g.g24!=null).sort((a,b)=>b.g24-a.g24)[0];
   const burst = DATA.games.filter(g=>g.explosionScore!=null).sort((a,b)=>b.explosionScore-a.explosionScore)[0];
+  const burstReady = DATA.cadence?.explosionReady || DATA.games.some(g=>g.g1!=null && g.persistence!=null);
+  const cadenceText = DATA.cadence?.samples2h == null ? 'aguardando novas coletas' : `${DATA.cadence.samples2h}/${DATA.cadence.targetSamples2h||9} coletas nas últimas 2h`;
   const newest = DATA.games.filter(g=>g.ageDays<=60).sort((a,b)=>b.playing-a.playing)[0];
   $('#tiles').innerHTML = [
     ['Online agora', fmt(DATA.platformCCU), 'soma dos mais jogados'],
     ['Jogos rastreados', fmt(DATA.games.length), `${DATA.games.filter(g=>g.mine).length} seus`],
-    ['Sinal mais forte', burst ? esc(burst.name) : '—', burst ? `índice ${burst.explosionScore} · +${fmt(burst.gain1)} em 1h` : 'calibrando cerca de 2h'],
+    ['Sinal mais forte', burst ? esc(burst.name) : '—', burst ? `índice ${burst.explosionScore} · +${fmt(burst.gain1)} em 1h` : burstReady ? 'nenhum sinal no momento' : `calibrando · ${cadenceText}`],
     ['Maior alta 24h', rising ? esc(rising.name) : '—', rising ? `+${rising.g24}% · ${fmtK(rising.playing)} online` : 'aguardando 48h de dados'],
     ['Novato em destaque', newest ? esc(newest.name) : '—', newest ? `${age(newest.ageDays)} de vida · ${fmtK(newest.playing)} online` : ''],
     ['Radar ativo há', hours < 48 ? hours+' h' : Math.round(hours/24)+' dias', `${DATA.runs} coletas`],
   ].map(([k,v,s])=>`<div class="tile"><div class="k">${k}</div><div class="v" style="font-size:${v.length>18?15:22}px">${v}</div><div class="s">${s}</div></div>`).join('');
-  if (hours < 48) { $('#notice').style.display='block'; $('#notice').textContent = `O radar começou há ${hours}h. “Explodindo” começa a produzir sinais após cerca de 2h; visitas/24h precisam de 24h, crescimento em 24h de 48h e o comparativo de 7 dias de 14 dias. Enquanto isso, os rankings do momento já funcionam!`; }
+  if (!burstReady) { $('#notice').style.display='block'; $('#notice').textContent = `“Explodindo” está calibrando: ${cadenceText}. São necessárias coletas regulares de 15 em 15 minutos para comparar as duas últimas janelas de 1h.`; }
+  else if (hours < 48) { $('#notice').style.display='block'; $('#notice').textContent = `“Explodindo” já está calibrado. Visitas/24h precisam de 24h, crescimento em 24h de 48h e o comparativo de 7 dias de 14 dias.`; }
   $('#nav').innerHTML = VIEWS.map(([k,l])=>`<button data-v="${k}" class="${k===view?'on':''}">${l}</button>`).join('');
   $('#nav').onclick = e => { const b=e.target.closest('button'); if(!b) return; view=b.dataset.v; sortKey=null; document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('on',x===b)); render(); };
   $('#period').onclick = e => { const b=e.target.closest('button'); if(!b) return; period=+b.dataset.p; document.querySelectorAll('#period button').forEach(x=>x.classList.toggle('on',x===b)); render(); };
@@ -207,7 +210,13 @@ function render(){
   if (!gs.length){
     let msg = 'Nenhum jogo aqui ainda.';
     if (view==='mine') msg = 'Nenhum jogo seu configurado ainda. Abra o arquivo <code>config/my_games.json</code> no GitHub e cole os links dos seus jogos (ou o ID do seu usuário / do grupo Papanoobhy). Na próxima coleta eles aparecem aqui. 🐱';
-    else if (view==='burst') msg = 'O sinal antecipado está calibrando. São necessárias cerca de 2 horas de coletas de 15 em 15 minutos. ⚡';
+    else if (view==='burst') {
+      const ready = DATA.cadence?.explosionReady || DATA.games.some(g=>g.g1!=null && g.persistence!=null);
+      const samples = DATA.cadence?.samples2h;
+      msg = ready
+        ? 'Nenhum jogo atingiu agora todos os critérios do sinal: +10%, +500 jogadores em 1h, ao menos 1.000 online e 75% de persistência. ⚡'
+        : `O sinal está calibrando: ${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}. ⚡`;
+    }
     else if (view==='new') msg = 'Nenhuma entrada nova desde que o monitoramento de prateleiras começou. 🛰️';
     else if (view==='rising') msg = 'Ainda não há histórico suficiente pra calcular crescimento. Volte em algumas horas! ⏳';
     $('#tbl').innerHTML = `<tr><td class="empty l">${msg}</td></tr>`; return;
