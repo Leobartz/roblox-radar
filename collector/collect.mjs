@@ -45,7 +45,7 @@ function chunk(arr, n) { const out = []; for (let i = 0; i < arr.length; i += n)
 async function fetchJSON(url, tries = 4) {
   for (let i = 0; i < tries; i++) {
     try {
-      const r = await fetch(url, { headers: { 'Accept': 'application/json', 'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8', 'User-Agent': 'PapanoobhyRadar/1.0' } });
+      const r = await fetch(url, { headers: { 'Accept': 'application/json', 'Accept-Language': 'en-US,en;q=0.9', 'User-Agent': 'PapanoobhyRadar/1.0' } });
       if (r.status === 429) { log('rate limit, esperando...'); await sleep(5000 * (i + 1)); continue; }
       if (!r.ok) throw new Error(`HTTP ${r.status} em ${url}`);
       return await r.json();
