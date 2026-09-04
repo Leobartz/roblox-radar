@@ -33,7 +33,12 @@
   nav button.on{background:var(--accent);color:#06221f;border-color:var(--accent);font-weight:600}
   .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
   .filters input,.filters select{background:var(--bg3);border:1px solid var(--line);color:var(--ink);padding:8px 10px;border-radius:8px;font-size:13px}
-  .filters input{min-width:220px;flex:1}
+  .searchbox{position:relative;min-width:220px;flex:1}
+  .searchbox input{width:100%;padding-right:38px}
+  .searchbox input::-webkit-search-cancel-button{appearance:none}
+  .clear-search{display:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:transparent;color:var(--ink2);font-size:21px;line-height:1;cursor:pointer}
+  .clear-search:hover{background:var(--chip);color:var(--ink)}
+  .clear-search.on{display:block}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .seg button{background:var(--bg3);border:0;color:var(--ink2);padding:7px 10px;cursor:pointer;font-size:12px}
   .seg button.on{background:var(--chip);color:var(--ink)}
@@ -59,6 +64,27 @@
   .chip.mine{background:rgba(79,209,197,.18);color:var(--accent)}
   .muted{color:var(--ink3)}
   .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg2)}
+  .special{display:none}
+  .special.on{display:block}
+  .insight-grid,.trend-grid,.thumb-grid{display:grid;gap:10px}
+  .insight-grid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:12px}
+  .trend-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .thumb-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+  .insight,.trend-card,.thumb-card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .insight{padding:13px}
+  .insight .big{font-size:22px;font-weight:700;margin:3px 0}
+  .trend-card{padding:14px}
+  .trend-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .trend-name{font-size:17px;font-weight:700}
+  .trend-score{color:var(--accent);font-weight:700}
+  .trend-games{margin-top:10px;color:var(--ink2);font-size:12px;line-height:1.7}
+  .thumb-card{cursor:pointer;transition:transform .15s,border-color .15s}
+  .thumb-card:hover{transform:translateY(-2px);border-color:#43506a}
+  .thumb-card img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--bg3)}
+  .thumb-body{padding:10px 12px}
+  .thumb-title{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .thumb-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;color:var(--ink3);font-size:12px}
+  .section-title{font-size:15px;color:var(--ink2);margin:16px 0 8px}
   .empty{padding:30px;text-align:center;color:var(--ink2)}
   .empty code{background:var(--bg3);padding:2px 6px;border-radius:6px}
   /* modal */
@@ -92,12 +118,13 @@
   <div class="hint" id="hint"></div>
   <div class="notice" id="notice" style="display:none"></div>
   <div class="filters">
-    <input id="q" placeholder="Buscar jogo ou criador…">
+    <div class="searchbox"><input id="q" type="search" placeholder="Buscar jogo ou criador…"><button class="clear-search" id="clearQ" type="button" aria-label="Limpar busca" title="Limpar busca">×</button></div>
     <select id="genre"><option value="">Todos os gêneros</option></select>
     <div class="seg" id="period"><button data-p="24" class="on">24h</button><button data-p="7">7 dias</button></div>
     <select id="limit"><option value="50">Top 50</option><option value="100">Top 100</option><option value="1000">Todos</option></select>
   </div>
-  <div class="tablewrap"><table id="tbl"></table></div>
+  <div class="tablewrap" id="tablewrap"><table id="tbl"></table></div>
+  <div class="special" id="special"></div>
 </main>
 <footer>Dados públicos da API do Roblox, coletados a cada 15 minutos. Crescimento = média de jogadores online no período comparada com o período anterior. Playtime est. = jogadores-minuto ÷ novas visitas na janela observada; não é uma métrica oficial do Roblox. Feito com 🐱 pelo Lucas.</footer>
 
@@ -111,11 +138,12 @@ const duration = n => n == null ? '<span class="muted">—</span>' : n < 60 ? `$
 const pct = v => v == null ? '<span class="muted">—</span>' : `<span class="badge ${v>2?'up':v<-2?'down':'flat'}">${v>0?'+':''}${v.toLocaleString('pt-BR')}%</span>`;
 const age = d => d < 1 ? 'hoje' : d < 30 ? d+' d' : d < 365 ? Math.round(d/30)+' m' : (d/365).toFixed(1)+' a';
 const dateBR = ts => new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const since = ts => { if(!ts)return ''; const h=Math.max(0,Math.round((DATA.updatedAt-ts)/36e5)); return h<24?`${h} h atrás`:`${Math.round(h/24)} d atrás`; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 let DATA, view = 'top', period = 24, sortKey = null, sortDir = -1;
 const VIEWS = [
-  ['top','🔥 Top agora'],['burst','⚡ Explodindo'],['new','🆕 Novos no radar'],['visits','👣 Mais visitados'],['rising','🚀 Subindo'],['promise','🌱 Promessas'],['stable','🏛️ Estáveis'],['mine','⭐ Meus jogos'],['all','📚 Todos']
+  ['top','🔥 Top agora'],['burst','⚡ Explodindo'],['new','🆕 Novos no radar'],['visits','👣 Mais visitados'],['rising','🚀 Subindo'],['promise','🌱 Promessas'],['stable','🏛️ Estáveis'],['thumbs','🖼️ Thumbnails'],['trends','🧭 Tendências'],['mine','⭐ Meus jogos'],['all','📚 Todos']
 ];
 const HINTS = {
   top:'Jogos com mais gente online agora mesmo.',
@@ -125,6 +153,8 @@ const HINTS = {
   rising:'Jogos cuja média de jogadores online mais cresceu. A janela evolui automaticamente de 15 min para 1h, 6h e 24h conforme o histórico fica disponível.',
   promise:'Jogos de até 60 dias com 300–50 mil online, menos de 50 milhões de visitas e aprovação mínima de 80%. Hits já consolidados ficam de fora.',
   stable:'Jogos com mais de 1 ano, mais de 1.000 jogadores e variação pequena. Os "clássicos que não morrem".',
+  thumbs:'Galeria das thumbnails dos jogos com maior momentum. A análise visual mede cor, brilho, saturação e contraste; não representa CTR.',
+  trends:'Temas detectados nos títulos, agrupados para revelar ondas como limpeza, obbys, tycoons, pets, anime e horror.',
   mine:'Seus jogos e os do estúdio, configurados em config/my_games.json.',
   all:'Todos os jogos rastreados. Clique em qualquer coluna pra ordenar e em um jogo pra ver o gráfico.',
 };
@@ -156,6 +186,8 @@ async function load(){
   $('#nav').onclick = e => { const b=e.target.closest('button'); if(!b) return; view=b.dataset.v; sortKey=null; document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('on',x===b)); render(); };
   $('#period').onclick = e => { const b=e.target.closest('button'); if(!b) return; period=+b.dataset.p; document.querySelectorAll('#period button').forEach(x=>x.classList.toggle('on',x===b)); render(); };
   ['#q','#genre','#limit'].forEach(s=>$(s).oninput = render);
+  $('#q').addEventListener('input',()=>$('#clearQ').classList.toggle('on',!!$('#q').value));
+  $('#clearQ').onclick=()=>{ $('#q').value=''; $('#clearQ').classList.remove('on'); $('#q').focus(); render(); };
   platformChart();
   render();
 }
@@ -253,6 +285,7 @@ const COLS = [
   {k:'name', l:'Jogo', left:true},
   {k:'genre', l:'Gênero', cls:'hide-m', f:g=>`<span class="muted">${esc(g.genre||'—')}</span>`},
   {k:'playing', l:'Online', f:g=>`<b>${fmt(g.playing)}</b>`},
+  {k:'maxCcu', l:'Pico máx. (radar)', cls:'hide-m', f:g=>fmt(g.maxCcu)},
   {k:'avgPlaytimeMin', l:'Playtime est.', cls:'hide-m', f:g=>duration(g.avgPlaytimeMin)},
   {k:'peak24', l:'Pico 24h', cls:'hide-m', f:g=>fmt(g.peak24)},
   {k:'__g', l:'Cresc.', f:g=>pct(g[gKey()])},
@@ -274,7 +307,13 @@ const COLS = [
 function render(){
   $('#hint').textContent = HINTS[view];
   updateNotice();
-  $('#period').style.visibility = (view==='burst' || view==='new') ? 'hidden' : 'visible';
+  $('#period').style.visibility = (view==='burst' || view==='new' || view==='thumbs') ? 'hidden' : 'visible';
+  const specialView = view === 'thumbs' || view === 'trends';
+  $('#tablewrap').style.display = specialView ? 'none' : 'block';
+  $('#special').classList.toggle('on', specialView);
+  if (view === 'thumbs') { renderThumbnails(); return; }
+  if (view === 'trends') { renderTrends(); return; }
+  $('#special').innerHTML = '';
   const gs = selectGames();
   const activeGrowth = gKey();
   const cols = COLS.filter(c=>!c.only || c.only===view).map(c=>({...c, k: c.k==='__g'?activeGrowth:c.k==='__v'?vKey():c.k, l: c.k==='__v'?('Visitas/'+(period===24?'24h':'7d')):c.k==='__g'?('Cresc. '+metricWindow(activeGrowth)):c.l}));
@@ -302,6 +341,116 @@ function render(){
   $('#tbl').innerHTML = head + rows;
   $('#tbl').querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { const k=th.dataset.k; if (k==='name') return; if (sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=-1; } render(); });
   $('#tbl').querySelectorAll('tr.g').forEach(tr => tr.onclick = () => openGame(+tr.dataset.u));
+}
+
+// ---------- thumbnails e tendências temáticas ----------
+const THEME_RULES = [
+  ['Limpeza', /\b(limp|limpe|limpa|clean|wash|lavander|laundry|lixo|trash|folha|leaf|sujeira|dirty)\w*/],
+  ['Obby / Parkour', /\b(obby|parkour|tower|torre|escape|fuga|salte|jump)\w*/],
+  ['Tycoon', /\b(tycoon|magnata|imperio|empire|fabrica|factory)\w*/],
+  ['Pets / Animais', /\b(pet|pets|animal|animais|gato|cat|cachorro|dog|chicken|frango|monkey|macaco)\w*/],
+  ['Anime', /\b(anime|jujutsu|demon|ninja|dragon|one piece|blox fruits|manga)\b/],
+  ['Horror / Sobrevivência', /\b(horror|terror|survival|sobreviv|doors|forsaken|night|noites|floresta|forest|anomalia)\w*/],
+  ['Roleplay / Vida', /\b(roleplay|\brp\b|vida|life|cidade|city|brookhaven|avatar|dress|vestir)\w*/],
+  ['Carros / Direção', /\b(car|cars|carro|drive|driving|corrida|race|moto|vehicle)\w*/],
+  ['Esportes', /\b(futebol|football|soccer|volley|basket|tennis|sports?)\w*/],
+  ['RNG / Sorte', /\b(rng|sorte|luck|lucky|bloco da sorte|random)\w*/],
+  ['Comida', /\b(food|comida|cozinha|cook|restaurant|pizza|mukbang|cake|bolo)\w*/],
+  ['Pesca / Mar', /\b(fish|fisch|pesca|pesque|mar|sea|ocean|baleia|whale)\w*/],
+  ['Cultivo / Crescimento', /\b(grow|cresca|cresce|jardim|garden|farm|fazenda|plant|planta)\w*/],
+  ['Brainrot / Roubo', /\b(brainrot|roube|steal|roubar)\w*/],
+  ['Simulador', /\b(simulator|simulador|simulacao|simulation)\w*/],
+  ['Combate / Shooter', /\b(fight|fighter|combate|battle|batalha|gun|arma|shoot|fps|rivals?|rivales)\w*/],
+];
+function normText(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+function themesFor(g){
+  const text = normText(g.name+' '+(g.genre||'')+' '+(g.genre2||''));
+  const found = THEME_RULES.filter(([,rx])=>rx.test(text)).map(([name])=>name);
+  return found.length ? found : [g.genre || 'Outros'];
+}
+function filteredGames(){
+  let gs = DATA.games.slice();
+  const q = $('#q').value.trim().toLowerCase(), ge = $('#genre').value;
+  if (q) gs = gs.filter(g => g.name.toLowerCase().includes(q) || g.creator.toLowerCase().includes(q));
+  if (ge) gs = gs.filter(g => g.genre === ge);
+  return gs;
+}
+function growthOf(g){
+  const keys = period===7 ? ['g7','g24','g6','g1','g15'] : ['g24','g6','g1','g15'];
+  const key = keys.find(k=>g[k]!=null);
+  return { key, value:key?g[key]:null, window:key?metricWindow(key):'—' };
+}
+function momentumScore(g){
+  const growth = growthOf(g).value || 0;
+  return Math.log10(Math.max(10,g.playing))*12 + Math.max(-20,Math.min(100,growth))*1.2 + (g.shelfNew?16:0) + (g.explosionScore||0)*.4;
+}
+function renderTrends(){
+  const gs = filteredGames();
+  const groups = new Map();
+  for (const g of gs) for (const theme of themesFor(g)) {
+    const x = groups.get(theme) || {name:theme,games:[],ccu:0,weighted:0,newCount:0,promises:0,maxCcu:0};
+    const growth = growthOf(g).value;
+    x.games.push(g); x.ccu += g.playing; x.maxCcu += g.maxCcu || g.playing;
+    if (growth != null) x.weighted += Math.max(-100,Math.min(300,growth))*Math.max(1,g.playing);
+    if (g.shelfNew) x.newCount++; if (isPromise(g)) x.promises++;
+    groups.set(theme,x);
+  }
+  const rows = [...groups.values()].map(x=>{
+    x.growth = x.ccu ? x.weighted/x.ccu : null;
+    x.score = Math.round(Math.log10(Math.max(10,x.ccu))*12 + Math.max(-20,Math.min(100,x.growth||0)) + x.newCount*8 + x.promises*3);
+    x.games.sort((a,b)=>momentumScore(b)-momentumScore(a)); return x;
+  }).filter(x=>x.games.length>=2 || x.ccu>=10000).sort((a,b)=>b.score-a.score);
+  const total = rows.reduce((s,x)=>s+x.ccu,0);
+  const strongest = rows[0];
+  $('#special').innerHTML = `<div class="insight-grid">
+    <div class="insight"><div class="muted">Tema mais forte</div><div class="big">${esc(strongest?.name||'—')}</div><div class="muted">índice ${fmt(strongest?.score)}</div></div>
+    <div class="insight"><div class="muted">Temas detectados</div><div class="big">${fmt(rows.length)}</div><div class="muted">em ${fmt(gs.length)} jogos filtrados</div></div>
+    <div class="insight"><div class="muted">CCU nos temas</div><div class="big">${fmtK(total)}</div><div class="muted">um jogo pode pertencer a mais de um tema</div></div>
+  </div><div class="trend-grid">${rows.map(x=>`<article class="trend-card">
+    <div class="trend-head"><div><div class="trend-name">${esc(x.name)}</div><div class="muted">${fmt(x.games.length)} jogos · ${fmtK(x.ccu)} online</div></div><div class="trend-score">${fmt(x.score)}</div></div>
+    <div class="thumb-meta">${pct(x.growth)} <span class="chip">${x.newCount} novos</span><span class="chip">${x.promises} promessas</span><span class="chip">pico ${fmtK(x.maxCcu)}</span></div>
+    <div class="trend-games">${x.games.slice(0,4).map(g=>`<span class="trend-game" data-u="${g.u}" style="cursor:pointer">${esc(g.name)} · ${fmtK(g.playing)}</span>`).join('<br>')}</div>
+  </article>`).join('')}</div>`;
+  $('#special').querySelectorAll('[data-u]').forEach(el=>el.onclick=()=>openGame(+el.dataset.u));
+}
+function visualLabel(a){
+  if (!a) return [];
+  return [a.saturation>.48?'vibrante':a.saturation<.25?'dessaturada':'saturação média',a.brightness>.68?'clara':a.brightness<.34?'escura':'brilho médio',a.contrast>.24?'alto contraste':'contraste suave',a.palette];
+}
+function analyzeThumbnail(url){
+  return new Promise(resolve=>{
+    if(!url) return resolve(null);
+    const img=new Image(); img.crossOrigin='anonymous';
+    img.onload=()=>{ try {
+      const c=document.createElement('canvas'); c.width=48;c.height=27;
+      const ctx=c.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img,0,0,c.width,c.height);
+      const d=ctx.getImageData(0,0,c.width,c.height).data; let sr=0,sg=0,sb=0,ss=0,sl=0,sl2=0,n=0;
+      for(let i=0;i<d.length;i+=16){ const r=d[i]/255,g=d[i+1]/255,b=d[i+2]/255,max=Math.max(r,g,b),min=Math.min(r,g,b),l=.2126*r+.7152*g+.0722*b; sr+=r;sg+=g;sb+=b;ss+=max-min;sl+=l;sl2+=l*l;n++; }
+      const r=sr/n,g=sg/n,b=sb/n,max=Math.max(r,g,b),min=Math.min(r,g,b),delta=max-min;
+      let hue=0;if(delta){if(max===r)hue=60*((g-b)/delta%6);else if(max===g)hue=60*((b-r)/delta+2);else hue=60*((r-g)/delta+4);if(hue<0)hue+=360;}
+      const palette=delta<.07?'neutra':hue<30||hue>=330?'vermelha':hue<75?'amarela':hue<165?'verde':hue<255?'azul':hue<300?'roxa':'rosa';
+      resolve({brightness:sl/n,saturation:ss/n,contrast:Math.sqrt(Math.max(0,sl2/n-(sl/n)**2)),palette});
+    } catch { resolve(null); }}; img.onerror=()=>resolve(null); img.src=url;
+  });
+}
+async function renderThumbnails(){
+  const token=view;
+  const gs=filteredGames().filter(g=>g.thumbnail||g.icon).sort((a,b)=>momentumScore(b)-momentumScore(a)).slice(0,+$('#limit').value);
+  const shown=gs.slice(0,30);
+  $('#special').innerHTML=`<div class="insight-grid" id="thumbInsights"><div class="insight"><div class="muted">Analisando a amostra visual…</div><div class="big">${fmt(shown.length)} thumbs</div><div class="muted">cor, brilho, saturação e contraste</div></div></div><div class="thumb-grid">${shown.map(g=>{
+    const gr=growthOf(g); return `<article class="thumb-card" data-u="${g.u}"><img crossorigin="anonymous" loading="lazy" src="${g.thumbnail||g.icon}" alt="Thumbnail de ${esc(g.name)}"><div class="thumb-body"><div class="thumb-title">${esc(g.name)}</div><div class="muted">${esc(g.creator)}</div><div class="thumb-meta"><b>${fmtK(g.playing)} online</b>${pct(gr.value)}<span class="chip">${esc(gr.window)}</span><span class="chip">pico ${fmtK(g.maxCcu)}</span>${g.thumbnailChangedAt?`<span class="chip">thumb mudou ${since(g.thumbnailChangedAt)}</span>`:''}</div><div class="thumb-meta visual-tags" data-u="${g.u}"><span class="muted">analisando…</span></div></div></article>`;
+  }).join('')}</div>`;
+  $('#special').querySelectorAll('.thumb-card').forEach(el=>el.onclick=()=>openGame(+el.dataset.u));
+  const analyses=await Promise.all(shown.map(g=>analyzeThumbnail(g.thumbnail||g.icon)));
+  if(view!==token) return;
+  shown.forEach((g,i)=>{ const box=$(`#special .visual-tags[data-u="${g.u}"]`); if(box) box.innerHTML=visualLabel(analyses[i]).map(x=>`<span class="chip">${esc(x)}</span>`).join('') || '<span class="muted">sem leitura visual</span>'; });
+  const ok=analyses.filter(Boolean); if(!ok.length)return;
+  const count=fn=>ok.filter(fn).length, topPalette=[...new Set(ok.map(a=>a.palette))].map(p=>[p,count(a=>a.palette===p)]).sort((a,b)=>b[1]-a[1])[0];
+  $('#thumbInsights').innerHTML=`
+    <div class="insight"><div class="muted">Paleta dominante</div><div class="big">${esc(topPalette[0])}</div><div class="muted">${topPalette[1]} de ${ok.length} analisadas</div></div>
+    <div class="insight"><div class="muted">Visual vibrante</div><div class="big">${Math.round(count(a=>a.saturation>.48)/ok.length*100)}%</div><div class="muted">alta saturação</div></div>
+    <div class="insight"><div class="muted">Alto contraste</div><div class="big">${Math.round(count(a=>a.contrast>.24)/ok.length*100)}%</div><div class="muted">separação forte entre luz e sombra</div></div>
+    <div class="insight"><div class="muted">Thumb clara</div><div class="big">${Math.round(count(a=>a.brightness>.68)/ok.length*100)}%</div><div class="muted">brilho médio elevado</div></div>`;
 }
 
 // ---------- gráficos ----------
@@ -334,7 +483,7 @@ async function openGame(u){
   $('#modal').innerHTML = `
     <div class="head">${g.icon?`<img src="${g.icon}" alt="">`:''}<div><h2>${esc(g.name)}</h2><div class="muted">${esc(g.creator)}${g.verified?' ✓':''} · ${esc(g.genre||'')}${g.genre2?' / '+esc(g.genre2):''} · criado em ${new Date(g.created).toLocaleDateString('pt-BR')} · <a target="_blank" rel="noopener" href="https://www.roblox.com/games/${g.p}">abrir no Roblox ↗</a></div></div><button class="close" id="closeM">✕</button></div>
     <div class="stats">
-      ${[['Online agora',fmt(g.playing)],['Playtime estimado',duration(g.avgPlaytimeMin)],['Janela do playtime',g.playtimeWindowHours==null?'—':g.playtimeWindowHours.toLocaleString('pt-BR',{maximumFractionDigits:1})+' h'],['Cresc. 15 min',pct(g.g15)],['Cresc. 1h',pct(g.g1)],['Ganho 1h',g.gain1==null?'—':(g.gain1>=0?'+':'')+fmt(g.gain1)],['Cresc. 6h',pct(g.g6)],['Persistência',g.persistence==null?'—':g.persistence+'%'],['Participação',g.share==null?'—':g.share.toLocaleString('pt-BR',{maximumFractionDigits:3})+'%'],['Índice de explosão',fmt(g.explosionScore)],['Prateleiras',fmt(g.shelfBreadth)],['Melhor posição',g.bestRank==null?'—':'#'+fmt(g.bestRank)],['Avanço no ranking',g.rankDelta==null?'—':(g.rankDelta>0?'+':'')+fmt(g.rankDelta)],['Média 24h',fmt(g.avg24)],['Pico 24h',fmt(g.peak24)],['Pico 7d',fmt(g.peak7)],['Cresc. 24h',pct(g.g24)],['Cresc. 7d',pct(g.g7)],['Visitas',fmtK(g.visits)],['Visitas/24h',fmtK(g.visits24)],['Visitas/7d',fmtK(g.visits7)],['Favoritos',fmtK(g.favs)],['Favoritos/24h',g.favs24==null?'—':(g.favs24>=0?'+':'')+fmt(g.favs24)],['👍 aprovação',g.likeRatio==null?'—':g.likeRatio+'%'],['Máx. por servidor',g.maxPlayers],['Idade',age(g.ageDays)]].map(([k,v])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}
+      ${[['Online agora',fmt(g.playing)],['Pico máximo (radar)',fmt(g.maxCcu)],['Playtime estimado',duration(g.avgPlaytimeMin)],['Janela do playtime',g.playtimeWindowHours==null?'—':g.playtimeWindowHours.toLocaleString('pt-BR',{maximumFractionDigits:1})+' h'],['Cresc. 15 min',pct(g.g15)],['Cresc. 1h',pct(g.g1)],['Ganho 1h',g.gain1==null?'—':(g.gain1>=0?'+':'')+fmt(g.gain1)],['Cresc. 6h',pct(g.g6)],['Persistência',g.persistence==null?'—':g.persistence+'%'],['Participação',g.share==null?'—':g.share.toLocaleString('pt-BR',{maximumFractionDigits:3})+'%'],['Índice de explosão',fmt(g.explosionScore)],['Prateleiras',fmt(g.shelfBreadth)],['Melhor posição',g.bestRank==null?'—':'#'+fmt(g.bestRank)],['Avanço no ranking',g.rankDelta==null?'—':(g.rankDelta>0?'+':'')+fmt(g.rankDelta)],['Média 24h',fmt(g.avg24)],['Pico 24h',fmt(g.peak24)],['Pico 7d',fmt(g.peak7)],['Cresc. 24h',pct(g.g24)],['Cresc. 7d',pct(g.g7)],['Visitas',fmtK(g.visits)],['Visitas/24h',fmtK(g.visits24)],['Visitas/7d',fmtK(g.visits7)],['Favoritos',fmtK(g.favs)],['Favoritos/24h',g.favs24==null?'—':(g.favs24>=0?'+':'')+fmt(g.favs24)],['👍 aprovação',g.likeRatio==null?'—':g.likeRatio+'%'],['Máx. por servidor',g.maxPlayers],['Idade',age(g.ageDays)]].map(([k,v])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}
     </div>
     <div class="card"><h3>Jogadores online a cada 15 minutos (últimos ${histDays} dias)</h3><div class="chartbox"><canvas id="gameChart"></canvas></div><div class="legendnote">${h.h.length<3?'Ainda poucos pontos — o gráfico enche conforme o radar coleta a cada 15 minutos.':''}</div></div>
     ${h.d.length ? `<div class="card" style="margin-top:10px"><h3>Pico diário de jogadores (histórico longo)</h3><div class="chartbox" style="height:200px"><canvas id="dayChart"></canvas></div></div>` : ''}

@@ -29,6 +29,10 @@ O sinal **Explodindo** começa a calibrar depois de cerca de 2 horas. Ele exige 
 de mercado, avanço nas prateleiras e aprovação. **Novos no radar** mostra entradas e reentradas nas
 prateleiras monitoradas depois da calibração inicial.
 
+O radar também mostra o maior CCU observado desde o início da coleta, uma galeria de thumbnails
+com leitura automática de paleta, brilho, saturação e contraste, e uma aba de tendências que agrupa
+jogos por temas detectados nos títulos. A leitura visual não mede CTR; ela aponta padrões para investigar.
+
 ## Acompanhar os seus jogos
 
 Edite `config/my_games.json` (no GitHub mesmo: clique no arquivo → lápis ✏️ → Commit):

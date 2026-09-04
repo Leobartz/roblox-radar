@@ -152,6 +152,19 @@ async function fetchIcons(ids) {
   }
   return out;
 }
+async function fetchThumbnails(ids) {
+  const out = new Map();
+  for (const c of chunk(ids, 50)) {
+    const url = `https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=${c.join(',')}&countPerUniverse=1&defaults=true&size=768x432&format=Png&isCircular=false`;
+    const r = await fetchJSON(url);
+    (r?.data || []).forEach(entry => {
+      const t = entry?.thumbnails?.find(x => x.state === 'Completed' && x.imageUrl);
+      if (t) out.set(entry.universeId, { id: t.targetId, url: t.imageUrl });
+    });
+    await sleep(250);
+  }
+  return out;
+}
 
 // ---------- histórico ----------
 function loadHistory(u) { return readJSON(path.join(HIST_DIR, `${u}.json`), { u, h: [], d: [] }); }
@@ -277,6 +290,7 @@ function metrics(hist, now, platform) {
     avg24: avg(last24) != null ? Math.round(avg(last24)) : null,
     peak24: peak(last24),
     peak7: peak(last7),
+    maxCcu: Math.max(0, ...h.map(p => p[1] || 0), ...(hist.d || []).map(p => p[1] || 0)),
     g15, gain15, g1, gain1, g6, gain6, persistence,
     share: share == null ? null : Math.round(share * 10000) / 10000,
     shareG1, shareG6,
@@ -292,7 +306,7 @@ function metrics(hist, now, platform) {
 function mockData(now) {
   const genres = ['Simulation', 'RPG', 'Survival', 'Roleplay & Avatar Sim', 'Action', 'Obby & Platformer', 'Shooter', 'Sports & Racing'];
   const names = ['Roube um Ovo', 'Blox Fruits', 'Brookhaven RP', 'Adopt Me!', 'Hungry Floppas', 'Cresça um Jardim', 'DOORS', 'Fisch', 'Forsaken', 'Pule por Animais!', 'Futebol Proibido', 'Simulador de Gato Gordo', 'Yoshi Tycoon', 'Sapos Loucos', 'Pesque-o!', 'Torre do Inferno', 'RIVALES', 'Dandy World', 'Dress to Impress', 'Evade'];
-  const listed = new Map(); const details = new Map(); const votes = new Map(); const icons = new Map();
+  const listed = new Map(); const details = new Map(); const votes = new Map(); const icons = new Map(); const thumbnails = new Map();
   let seed = 42; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 120; i++) {
     const u = 1000 + i;
@@ -306,6 +320,7 @@ function mockData(now) {
     details.set(u, { id: u, rootPlaceId: 5000 + i, name, creator: { id: i === 4 ? 1 : 99, name: i === 4 ? 'Papanoobhy' : `Studio ${i}`, type: 'Group', hasVerifiedBadge: i % 3 === 0 }, playing, visits: Math.floor(playing * ageDays * 40 * (0.5 + rnd())), maxPlayers: 8 + (i % 30), created: new Date(now - ageDays * DAY).toISOString(), updated: new Date(now - rnd() * 10 * DAY).toISOString(), genre_l1: genres[i % genres.length], genre_l2: '', favoritedCount: Math.floor(playing * 30 * rnd()) });
     votes.set(u, { upVotes: Math.floor(playing * 20 * rnd()) + 100, downVotes: Math.floor(playing * 2 * rnd()) + 10 });
     icons.set(u, '');
+    thumbnails.set(u, { id: 900000 + i, url: '' });
     // histórico falso (15 dias a cada 15 minutos)
     const hist = { u, h: [], d: [] };
     const trend = (rnd() - 0.4) * 0.05;
@@ -318,7 +333,7 @@ function mockData(now) {
     }
     writeJSON(path.join(HIST_DIR, `${u}.json`), hist);
   }
-  return { listed, details, votes, icons, mine: [1004] };
+  return { listed, details, votes, icons, thumbnails, mine: [1004] };
 }
 
 // ---------- principal ----------
@@ -327,9 +342,9 @@ async function main() {
   const nowRounded = Math.floor(now / SAMPLE_INTERVAL) * SAMPLE_INTERVAL;
   fs.mkdirSync(HIST_DIR, { recursive: true });
 
-  let listed, details, votes, icons, mine;
+  let listed, details, votes, icons, thumbnails, mine;
   if (MOCK) {
-    ({ listed, details, votes, icons, mine } = mockData(nowRounded));
+    ({ listed, details, votes, icons, thumbnails, mine } = mockData(nowRounded));
   } else {
     listed = await discover();
     mine = await resolveMyGames();
@@ -338,6 +353,7 @@ async function main() {
     details = await fetchDetails(ids);
     votes = await fetchVotes(ids);
     icons = await fetchIcons(ids);
+    thumbnails = await fetchThumbnails(ids);
   }
 
   const mineSet = new Set(mine);
@@ -373,6 +389,18 @@ async function main() {
     else if (hist.shelfNewAt == null && inferredNewAt != null) hist.shelfNewAt = inferredNewAt;
     const shelfNewAt = hist.shelfNewAt ?? null;
     const shelfNew = shelfNewAt != null && shelfNewAt <= nowRounded && nowRounded - shelfNewAt <= DAY;
+    const thumbnail = thumbnails.get(u) || null;
+    hist.thumbnails ||= [];
+    const lastThumbnail = hist.thumbnails[hist.thumbnails.length - 1];
+    if (thumbnail?.id && (!lastThumbnail || lastThumbnail[1] !== thumbnail.id)) {
+      hist.thumbnails.push([nowRounded, thumbnail.id, thumbnail.url]);
+    } else if (thumbnail?.url && lastThumbnail && !lastThumbnail[2]) {
+      lastThumbnail[2] = thumbnail.url;
+    }
+    hist.thumbnailInitializedAt ||= hist.thumbnails[0]?.[0] || null;
+    hist.thumbnails = hist.thumbnails.filter((entry, i, arr) => entry[0] >= nowRounded - 365 * DAY || i === arr.length - 1);
+    const thumbnailChangedAt = hist.thumbnails.length > 1 ? hist.thumbnails[hist.thumbnails.length - 1][0] : null;
+    const thumbnailChanges30d = hist.thumbnails.filter(entry => entry[0] >= nowRounded - 30 * DAY && entry[0] !== hist.thumbnailInitializedAt).length;
     writeJSON(path.join(HIST_DIR, `${u}.json`), hist);
     const v = votes.get(u) || {};
     const ageDays = Math.max(0, Math.round((now - Date.parse(d.created)) / DAY));
@@ -393,6 +421,7 @@ async function main() {
       u, p: d.rootPlaceId, name: d.name.trim(),
       creator: d.creator?.name || '?', creatorId: d.creator?.id, creatorType: d.creator?.type, verified: !!d.creator?.hasVerifiedBadge,
       icon: icons.get(u) || '',
+      thumbnail: thumbnail?.url || '', thumbnailId: thumbnail?.id || null, thumbnailChangedAt, thumbnailChanges30d,
       playing: d.playing || 0, visits: d.visits || 0, favs: d.favoritedCount || 0,
       up: v.upVotes ?? l?.up ?? 0, dn: v.downVotes ?? l?.dn ?? 0,
       maxPlayers: d.maxPlayers, created: d.created, updated: d.updated,

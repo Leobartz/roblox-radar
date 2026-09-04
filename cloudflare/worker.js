@@ -1,7 +1,7 @@
 const COOKIE_NAME = "papanoobhy_radar_session";
 const STATE_COOKIE = "papanoobhy_radar_oauth_state";
 const SESSION_SECONDS = 60 * 60 * 24 * 7;
-const RAW_BASE = "https://raw.githubusercontent.com/Leobartz/roblox-radar";
+const RAW_BASE = "https://raw.githubusercontent.com/Leobartz/roblox-radar/refs/heads";
 
 export default {
   async fetch(request, env) {
