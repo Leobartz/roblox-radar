@@ -338,14 +338,20 @@ async function main() {
     const shelfBreadth = l?.shelves?.size || 0;
     const allRanks = Object.values(l?.deviceRanks || {}).flatMap(r => Object.values(r));
     const bestRank = allRanks.length ? Math.min(...allRanks) : null;
-    pushPoint(hist, nowRounded, d.playing || 0, d.visits || 0, d.favoritedCount || 0, shelfBreadth, bestRank);
-    writeJSON(path.join(HIST_DIR, `${u}.json`), hist);
-    const m = metrics(hist, nowRounded, platform);
-    const v = votes.get(u) || {};
-    const ageDays = Math.max(0, Math.round((now - Date.parse(d.created)) / DAY));
     const previousBreadth = previous?.length >= 6 ? (previous[4] || 0) : null;
     const previousRank = previous?.length >= 6 ? previous[5] : null;
-    const shelfNew = !MOCK && meta.runs >= 8 && shelfBreadth > 0 && (!existed || (previous && nowRounded - previous[0] > 6 * HOUR) || previousBreadth === 0);
+    pushPoint(hist, nowRounded, d.playing || 0, d.visits || 0, d.favoritedCount || 0, shelfBreadth, bestRank);
+    const m = metrics(hist, nowRounded, platform);
+    const shelfNewEvent = !MOCK && meta.runs >= 8 && shelfBreadth > 0
+      && (!existed || (previous && nowRounded - previous[0] > 6 * HOUR) || previousBreadth === 0);
+    const inferredNewAt = !MOCK && meta.runs >= 8 && m.firstSeen > meta.firstRun ? m.firstSeen : null;
+    if (shelfNewEvent) hist.shelfNewAt = nowRounded;
+    else if (hist.shelfNewAt == null && inferredNewAt != null) hist.shelfNewAt = inferredNewAt;
+    const shelfNewAt = hist.shelfNewAt ?? null;
+    const shelfNew = shelfNewAt != null && shelfNewAt <= nowRounded && nowRounded - shelfNewAt <= DAY;
+    writeJSON(path.join(HIST_DIR, `${u}.json`), hist);
+    const v = votes.get(u) || {};
+    const ageDays = Math.max(0, Math.round((now - Date.parse(d.created)) / DAY));
     const shelfDelta = previousBreadth == null ? null : shelfBreadth - previousBreadth;
     const rankDelta = previousRank != null && bestRank != null ? previousRank - bestRank : null;
     const likeRatio = (v.upVotes ?? l?.up ?? 0) + (v.downVotes ?? l?.dn ?? 0) > 0
@@ -369,7 +375,7 @@ async function main() {
       genre: d.genre_l1 || d.genre || '', genre2: d.genre_l2 || '',
       ageDays, lists: l ? [...l.lists] : [], ranks: l?.ranks || {},
       devices: Object.keys(l?.deviceRanks || {}), deviceRanks: l?.deviceRanks || {},
-      shelfBreadth, bestRank, shelfNew, shelfDelta, rankDelta, explosionScore,
+      shelfBreadth, bestRank, shelfNew, shelfNewAt, shelfDelta, rankDelta, explosionScore,
       mine: mineSet.has(u),
       ...m,
     });
