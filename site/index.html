@@ -78,6 +78,24 @@
   .trend-name{font-size:17px;font-weight:700}
   .trend-score{color:var(--accent);font-weight:700}
   .trend-games{margin-top:10px;color:var(--ink2);font-size:12px;line-height:1.7}
+  .trend-board{display:grid;gap:8px}
+  .trend-row{display:grid;grid-template-columns:42px minmax(210px,1.7fr) minmax(180px,1fr) minmax(220px,1.3fr);gap:14px;align-items:center;background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
+  .trend-rank{font-size:18px;font-weight:700;color:var(--ink3);text-align:center}
+  .trend-title{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700}
+  .trend-signal{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .trend-signal.hot{background:rgba(246,199,92,.16);color:var(--warn)}
+  .trend-signal.up{background:rgba(63,207,142,.15);color:var(--up)}
+  .trend-signal.flat{background:var(--chip);color:var(--ink2)}
+  .trend-signal.down{background:rgba(255,107,107,.14);color:var(--down)}
+  .trend-track{height:7px;background:var(--bg3);border-radius:999px;overflow:hidden;margin:7px 0 5px}
+  .trend-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:999px}
+  .trend-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center}
+  .trend-kpis b{display:block;font-size:14px}.trend-kpis span{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.3px}
+  .trend-games-compact{display:flex;gap:5px;flex-wrap:wrap}
+  .trend-game-pill{background:var(--chip);border:0;color:var(--ink2);padding:5px 8px;border-radius:7px;font-size:11px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .trend-game-pill:hover{color:var(--ink);background:#30384a}
+  .trend-more{margin-top:10px;color:var(--ink2)}
+  .trend-more summary{cursor:pointer;padding:9px 2px}
   .thumb-card{cursor:pointer;transition:transform .15s,border-color .15s}
   .thumb-card:hover{transform:translateY(-2px);border-color:#43506a}
   .thumb-card img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--bg3)}
@@ -100,6 +118,7 @@
   .chartbox{position:relative;height:260px}
   .legendnote{font-size:12px;color:var(--ink3);margin-top:6px}
   footer{max-width:1800px;margin:0 auto;padding:20px;color:var(--ink3);font-size:12px}
+  @media (max-width:900px){.trend-row{grid-template-columns:34px 1fr}.trend-kpis,.trend-games-compact{grid-column:2}}
   @media (max-width:700px){ .hide-m{display:none} header{padding:14px 12px 6px} main{padding:0 12px 40px} }
 </style>
 </head>
@@ -153,7 +172,7 @@ const HINTS = {
   visits:'Jogos com mais visitas na história. "Visitas/24h" mostra quem está recebendo mais gente hoje.',
   rising:'Jogos cuja média de jogadores online mais cresceu. A janela evolui automaticamente de 15 min para 1h, 6h e 24h conforme o histórico fica disponível.',
   promise:'Jogos de até 60 dias com 300–50 mil online, menos de 50 milhões de visitas e aprovação mínima de 80%. Hits já consolidados ficam de fora.',
-  stable:'Jogos com mais de 1 ano, mais de 1.000 jogadores e variação pequena. Os "clássicos que não morrem".',
+  stable:'Jogos com mais de 1 ano, mais de 1.000 jogadores e pouca variação na melhor janela disponível. A classificação fica mais confiável conforme o histórico cresce.',
   thumbs:'Galeria das thumbnails dos jogos com maior momentum. A análise visual mede cor, brilho, saturação e contraste; não representa CTR.',
   trends:'Temas detectados nos títulos, agrupados para revelar ondas como limpeza, obbys, tycoons, pets, anime e horror.',
   mine:'Seus jogos e os do estúdio, configurados em config/my_games.json.',
@@ -199,7 +218,13 @@ function risingKey(){
   if (hasMetric(target)) return target;
   return ['g6','g1','g15'].find(hasMetric) || target;
 }
-function gKey(){ return view==='burst'?'burstGrowth':view==='rising'?risingKey():period===24?'g24':'g7'; }
+function stableKey(){
+  const target = period===7 ? 'g7' : 'g24';
+  if (hasMetric(target)) return target;
+  return ['g6','g1','g15'].find(hasMetric) || target;
+}
+function stableThreshold(key){ return ({g15:2,g1:5,g6:10,g24:15,g7:15})[key] || 15; }
+function gKey(){ return view==='burst'?'burstGrowth':view==='rising'?risingKey():view==='stable'?stableKey():period===24?'g24':'g7'; }
 function vKey(){ return period===24?'visits24':'visits7'; }
 function metricWindow(key){ return ({g15:'15 min',g1:'1h',g6:'6h',g24:'24h',g7:'7d',burstGrowth:'sinal'})[key] || ''; }
 function clamp01(n){ return Math.max(0,Math.min(1,n)); }
@@ -250,8 +275,14 @@ function updateNotice(){
     message = period === 24
       ? `Prévia ativa com crescimento de ${fallback}; a comparação definitiva de 24h substitui esta coluna após cerca de 48 horas.`
       : `Prévia ativa com crescimento de ${fallback}; a comparação definitiva de 7 dias substitui esta coluna após cerca de 14 dias.`;
-  } else if (view === 'stable' && !any('g7')) {
-    message = '“Estáveis” só classifica jogos depois de 14 dias, quando já existe uma comparação real entre duas janelas de 7 dias.';
+  } else if (view === 'trends' && !any(period === 24 ? 'g24' : 'g7')) {
+    const fallback = risingKey(), label = hasMetric(fallback) ? metricWindow(fallback) : null;
+    message = label
+      ? `O ranking temático está usando crescimento de ${label}. A janela aumenta automaticamente conforme o histórico fica completo.`
+      : 'O ranking temático já organiza os públicos por tema. Os sinais de crescimento aparecem assim que houver duas coletas comparáveis.';
+  } else if (view === 'stable' && !any(period===7?'g7':'g24')) {
+    const fallback = metricWindow(stableKey());
+    message = `Prévia de estabilidade ativa com a janela de ${fallback}. Ela evolui automaticamente até a comparação definitiva de ${period===7?'7 dias':'24 horas'}.`;
   } else if (view === 'promise' && !any('g24')) {
     message = 'A lista de promessas já funciona, mas a pontuação ainda é preliminar até completar 48 horas e incorporar o crescimento de 24h.';
   } else if (view === 'visits' && !any(period === 24 ? 'visits24' : 'visits7')) {
@@ -274,7 +305,12 @@ function selectGames(){
     case 'visits': gs.sort((a,b)=>b.visits-a.visits); break;
     case 'rising': gs = gs.filter(g=>g[gk]!=null && (g.avg24??g.playing)>=200).sort((a,b)=>b[gk]-a[gk]); break;
     case 'promise': gs = gs.filter(isPromise).map(g=>({...g, score:promiseScore(g)})).sort((a,b)=>b.score-a.score); break;
-    case 'stable': gs = gs.filter(g=>g.ageDays>=365 && g.playing>=1000 && g.g7!=null && Math.abs(g.g7)<15).sort((a,b)=>b.playing-a.playing); break;
+    case 'stable': {
+      const sk=stableKey(), limit=stableThreshold(sk);
+      gs = gs.filter(g=>g.ageDays>=365 && g.playing>=1000 && g[sk]!=null && Math.abs(g[sk])<=limit && (g.likeRatio==null||g.likeRatio>=70))
+        .map(g=>({...g,stabilityScore:Math.round(100-Math.min(100,Math.abs(g[sk])/limit*100))}))
+        .sort((a,b)=>b.playing-a.playing); break;
+    }
     case 'mine': gs = gs.filter(g=>g.mine).sort((a,b)=>b.playing-a.playing); break;
     case 'all': gs.sort((a,b)=>b.playing-a.playing); break;
   }
@@ -304,6 +340,7 @@ const COLS = [
   {k:'rankDelta', l:'Avanço', only:'new', f:g=>g.rankDelta==null?'—':(g.rankDelta>0?'+':'')+fmt(g.rankDelta)},
   {k:'shelfNewAt', l:'Detectado', only:'new', f:g=>dateBR(g.shelfNewAt??g.firstSeen)},
   {k:'score', l:'Pontos', only:'promise', f:g=>`<b>${fmt(g.score)}</b>`},
+  {k:'stabilityScore', l:'Estabilidade', only:'stable', f:g=>`<b>${fmt(g.stabilityScore)}</b>`},
 ];
 
 function render(){
@@ -332,7 +369,7 @@ function render(){
     else if (view==='new') msg = 'Nenhum jogo emergente apareceu ou reapareceu nas prateleiras nas últimas 24 horas. 🛰️';
     else if (view==='rising') msg = 'Ainda não há nem uma comparação curta disponível. Aguarde a próxima coleta de 15 minutos. ⏳';
     else if (view==='promise') msg = 'Nenhum jogo atende agora aos critérios de promessa: até 60 dias, entre 300 e 50 mil online, menos de 50 milhões de visitas e ao menos 80% de aprovação. 🌱';
-    else if (view==='stable') msg = 'A classificação de estabilidade estará disponível após cerca de 14 dias de histórico. 🏛️';
+    else if (view==='stable') msg = 'Nenhum jogo antigo e ativo ficou dentro da faixa de estabilidade na janela atual. 🏛️';
     $('#tbl').innerHTML = `<tr><td class="empty l">${msg}</td></tr>`; return;
   }
   const head = '<tr><th class="rank">#</th>' + cols.map(c=>`<th class="${c.left?'l ':''}${c.cls||''} ${sortKey===c.k?'sorted':''}" data-k="${c.k}">${c.l}${sortKey===c.k?(sortDir<0?' ↓':' ↑'):''}</th>`).join('') + '</tr>';
@@ -364,6 +401,7 @@ const THEME_RULES = [
   ['Simulador', /\b(simulator|simulador|simulacao|simulation)\w*/],
   ['Combate / Shooter', /\b(fight|fighter|combate|battle|batalha|gun|arma|shoot|fps|rivals?|rivales)\w*/],
 ];
+const THEME_ICONS = {'Limpeza':'🧼','Obby / Parkour':'🏃','Tycoon':'🏭','Pets / Animais':'🐾','Anime':'⚔️','Horror / Sobrevivência':'👻','Roleplay / Vida':'🏠','Carros / Direção':'🏎️','Esportes':'⚽','RNG / Sorte':'🎲','Comida':'🍔','Pesca / Mar':'🎣','Cultivo / Crescimento':'🌱','Brainrot / Roubo':'🧠','Simulador':'🎮','Combate / Shooter':'🎯'};
 function normText(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
 function themesFor(g){
   const text = normText(g.name+' '+(g.genre||'')+' '+(g.genre2||''));
@@ -390,29 +428,36 @@ function renderTrends(){
   const gs = filteredGames();
   const groups = new Map();
   for (const g of gs) for (const theme of themesFor(g)) {
-    const x = groups.get(theme) || {name:theme,games:[],ccu:0,weighted:0,newCount:0,promises:0,maxCcu:0};
+    const x = groups.get(theme) || {name:theme,games:[],ccu:0,weighted:0,weightBase:0,metricCount:0,positive:0,newCount:0,promises:0};
     const growth = growthOf(g).value;
-    x.games.push(g); x.ccu += g.playing; x.maxCcu += g.maxCcu || g.playing;
-    if (growth != null) x.weighted += Math.max(-100,Math.min(300,growth))*Math.max(1,g.playing);
+    x.games.push(g); x.ccu += g.playing;
+    if (growth != null) { const w=Math.sqrt(Math.max(1,g.playing)); x.weighted+=Math.max(-100,Math.min(300,growth))*w; x.weightBase+=w; x.metricCount++; if(growth>2)x.positive++; }
     if (g.shelfNew) x.newCount++; if (isPromise(g)) x.promises++;
     groups.set(theme,x);
   }
   const rows = [...groups.values()].map(x=>{
-    x.growth = x.ccu ? x.weighted/x.ccu : null;
-    x.score = Math.round(Math.log10(Math.max(10,x.ccu))*12 + Math.max(-20,Math.min(100,x.growth||0)) + x.newCount*8 + x.promises*3);
+    x.growth = x.weightBase ? x.weighted/x.weightBase : null;
+    x.positiveRate = x.metricCount ? x.positive/x.metricCount : 0;
+    const raw = 25 + Math.max(-15,Math.min(35,x.growth||0))*1.4 + x.positiveRate*30 + Math.min(12,Math.log10(Math.max(10,x.ccu))*2) + Math.min(15,(x.newCount+x.promises)*2);
+    x.score = Math.round(Math.max(0,Math.min(100,raw)));
     x.games.sort((a,b)=>momentumScore(b)-momentumScore(a)); return x;
   }).filter(x=>x.games.length>=2 || x.ccu>=10000).sort((a,b)=>b.score-a.score);
-  const total = rows.reduce((s,x)=>s+x.ccu,0);
-  const strongest = rows[0];
+  const strongest = rows[0], fastest=[...rows].filter(x=>x.growth!=null).sort((a,b)=>b.growth-a.growth)[0];
+  const audience=[...rows].sort((a,b)=>b.ccu-a.ccu)[0], emerging=[...rows].sort((a,b)=>(b.newCount+b.promises)-(a.newCount+a.promises)||b.score-a.score)[0];
+  const state=x=>x.growth==null?['flat','⏳ calibrando']:x.growth>=10?['hot','🔥 acelerando']:x.growth>=2?['up','↗ em alta']:x.growth>=-2?['flat','→ estável']:['down','↘ esfriando'];
+  const rowHtml=(x,i)=>{ const [cls,label]=state(x); return `<article class="trend-row">
+    <div class="trend-rank">${i+1}</div>
+    <div><div class="trend-title"><span>${THEME_ICONS[x.name]||'◈'}</span>${esc(x.name)} <span class="trend-signal ${cls}">${label}</span></div><div class="trend-track"><div class="trend-fill" style="width:${Math.max(4,x.score)}%"></div></div><div class="muted">força ${x.score}/100 · ${x.metricCount} jogos com leitura de ${esc(growthOf(x.games[0]).window)}</div></div>
+    <div class="trend-kpis"><div><b>${pct(x.growth)}</b><span>crescimento</span></div><div><b>${fmtK(x.ccu)}</b><span>online</span></div><div><b>${fmt(x.games.length)}</b><span>jogos</span></div></div>
+    <div><div class="trend-games-compact">${x.games.slice(0,3).map(g=>`<button class="trend-game-pill" data-u="${g.u}">${esc(g.name)} · ${fmtK(g.playing)} · ${dateOnly(g.created)}</button>`).join('')}</div><div class="muted" style="margin-top:7px">${x.newCount} novos no radar · ${x.promises} promessas</div></div>
+  </article>`; };
+  const primary=rows.slice(0,12), secondary=rows.slice(12);
   $('#special').innerHTML = `<div class="insight-grid">
-    <div class="insight"><div class="muted">Tema mais forte</div><div class="big">${esc(strongest?.name||'—')}</div><div class="muted">índice ${fmt(strongest?.score)}</div></div>
-    <div class="insight"><div class="muted">Temas detectados</div><div class="big">${fmt(rows.length)}</div><div class="muted">em ${fmt(gs.length)} jogos filtrados</div></div>
-    <div class="insight"><div class="muted">CCU nos temas</div><div class="big">${fmtK(total)}</div><div class="muted">um jogo pode pertencer a mais de um tema</div></div>
-  </div><div class="trend-grid">${rows.map(x=>`<article class="trend-card">
-    <div class="trend-head"><div><div class="trend-name">${esc(x.name)}</div><div class="muted">${fmt(x.games.length)} jogos · ${fmtK(x.ccu)} online</div></div><div class="trend-score">${fmt(x.score)}</div></div>
-    <div class="thumb-meta">${pct(x.growth)} <span class="chip">${x.newCount} novos</span><span class="chip">${x.promises} promessas</span><span class="chip">pico ${fmtK(x.maxCcu)}</span></div>
-    <div class="trend-games">${x.games.slice(0,4).map(g=>`<span class="trend-game" data-u="${g.u}" style="cursor:pointer">${esc(g.name)} · ${fmtK(g.playing)} · lançado ${dateOnly(g.created)}</span>`).join('<br>')}</div>
-  </article>`).join('')}</div>`;
+    <div class="insight"><div class="muted">Maior força agora</div><div class="big">${THEME_ICONS[strongest?.name]||''} ${esc(strongest?.name||'—')}</div><div class="muted">${strongest?strongest.score+'/100':'sem leitura'}</div></div>
+    <div class="insight"><div class="muted">Crescendo mais rápido</div><div class="big">${THEME_ICONS[fastest?.name]||''} ${esc(fastest?.name||'—')}</div><div class="muted">${fastest?pct(fastest.growth):'sem leitura'} na janela disponível</div></div>
+    <div class="insight"><div class="muted">Maior público</div><div class="big">${THEME_ICONS[audience?.name]||''} ${esc(audience?.name||'—')}</div><div class="muted">${fmtK(audience?.ccu)} online</div></div>
+    <div class="insight"><div class="muted">Mais oportunidades</div><div class="big">${THEME_ICONS[emerging?.name]||''} ${esc(emerging?.name||'—')}</div><div class="muted">${(emerging?.newCount||0)+(emerging?.promises||0)} novos/promessas</div></div>
+  </div><div class="section-title">Ranking de temas · crescimento pesa mais que tamanho</div><div class="trend-board">${primary.map(rowHtml).join('')}</div>${secondary.length?`<details class="trend-more"><summary>Mostrar mais ${secondary.length} temas</summary><div class="trend-board">${secondary.map((x,i)=>rowHtml(x,i+12)).join('')}</div></details>`:''}`;
   $('#special').querySelectorAll('[data-u]').forEach(el=>el.onclick=()=>openGame(+el.dataset.u));
 }
 function visualLabel(a){
