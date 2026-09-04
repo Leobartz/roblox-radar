@@ -119,7 +119,7 @@ const VIEWS = [
 const HINTS = {
   top:'Jogos com mais gente online agora mesmo.',
   burst:'Sinais antecipados: alta de pelo menos 10% e 500 jogadores em 1h, sustentada em várias coletas. O índice combina aceleração, participação de mercado, persistência, prateleiras e aprovação.',
-  new:'Jogos que apareceram ou reapareceram nas prateleiras monitoradas do Roblox nas últimas 24 horas.',
+  new:'Jogos que apareceram ou reapareceram nas prateleiras nas últimas 24 horas, excluindo hits com 100 milhões de visitas ou 100 mil jogadores online.',
   visits:'Jogos com mais visitas na história. "Visitas/24h" mostra quem está recebendo mais gente hoje.',
   rising:'Jogos cuja média de jogadores online mais cresceu em relação ao período anterior (mínimo de 200 jogadores de média).',
   promise:'Jogos de até 60 dias com 300–50 mil online, menos de 50 milhões de visitas e aprovação mínima de 80%. Hits já consolidados ficam de fora.',
@@ -161,9 +161,14 @@ async function load(){
 
 function gKey(){ return view==='burst'?'g1':period===24?'g24':'g7'; }
 function vKey(){ return period===24?'visits24':'visits7'; }
+function isEstablishedHit(g){
+  return g.visits >= 100000000 || g.playing >= 100000;
+}
+
 function isNewOnRadar(g){
   const seenAt = g.shelfNewAt ?? g.firstSeen;
-  return !!g.shelfNew || (seenAt != null && seenAt > DATA.firstRun && seenAt >= DATA.updatedAt - 864e5);
+  const recentEntry = !!g.shelfNew || (seenAt != null && seenAt > DATA.firstRun && seenAt >= DATA.updatedAt - 864e5);
+  return recentEntry && !isEstablishedHit(g);
 }
 
 function isPromise(g){
@@ -187,7 +192,7 @@ function updateNotice(){
     const samples = DATA.cadence?.samples2h;
     message = `“Explodindo” está calibrando: ${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}. São necessárias coletas regulares para comparar as duas janelas de 1h.`;
   } else if (view === 'new') {
-    message = 'Uma entrada permanece nesta aba por 24 horas depois de aparecer ou reaparecer no radar.';
+    message = 'Uma entrada permanece por 24 horas. Jogos já consolidados (100 mi de visitas ou 100 mil online) ficam de fora.';
   } else if (view === 'rising' && !any(period === 24 ? 'g24' : 'g7')) {
     message = period === 24 ? '“Subindo · 24h” precisa de cerca de 48 horas de histórico.' : '“Subindo · 7 dias” precisa de cerca de 14 dias de histórico.';
   } else if (view === 'stable' && !any('g7')) {
@@ -258,7 +263,7 @@ function render(){
         ? 'Nenhum jogo atingiu agora todos os critérios do sinal: +10%, +500 jogadores em 1h, ao menos 1.000 online e 75% de persistência. ⚡'
         : `O sinal está calibrando: ${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}. ⚡`;
     }
-    else if (view==='new') msg = 'Nenhum jogo apareceu ou reapareceu nas prateleiras nas últimas 24 horas. 🛰️';
+    else if (view==='new') msg = 'Nenhum jogo emergente apareceu ou reapareceu nas prateleiras nas últimas 24 horas. 🛰️';
     else if (view==='rising') msg = period===24 ? 'O crescimento de 24h estará disponível após cerca de 48 horas de histórico. ⏳' : 'O crescimento de 7 dias estará disponível após cerca de 14 dias de histórico. ⏳';
     else if (view==='promise') msg = 'Nenhum jogo atende agora aos critérios de promessa: até 60 dias, entre 300 e 50 mil online, menos de 50 milhões de visitas e ao menos 80% de aprovação. 🌱';
     else if (view==='stable') msg = 'A classificação de estabilidade estará disponível após cerca de 14 dias de histórico. 🏛️';
