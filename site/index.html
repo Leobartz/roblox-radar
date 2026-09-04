@@ -119,10 +119,10 @@ const VIEWS = [
 ];
 const HINTS = {
   top:'Jogos com mais gente online agora mesmo.',
-  burst:'Sinais antecipados: alta de pelo menos 10% e 500 jogadores em 1h, sustentada em várias coletas. O índice combina aceleração, participação de mercado, persistência, prateleiras e aprovação.',
+  burst:'Sinais antecipados: enquanto a janela de 1h calibra, mostra pré-sinais com alta de pelo menos 10% e 500 jogadores em 15 min. Depois, prioriza sinais confirmados e persistentes de 1h.',
   new:'Jogos que apareceram ou reapareceram nas prateleiras nas últimas 24 horas, excluindo hits com 100 milhões de visitas ou 100 mil jogadores online.',
   visits:'Jogos com mais visitas na história. "Visitas/24h" mostra quem está recebendo mais gente hoje.',
-  rising:'Jogos cuja média de jogadores online mais cresceu em relação ao período anterior (mínimo de 200 jogadores de média).',
+  rising:'Jogos cuja média de jogadores online mais cresceu. A janela evolui automaticamente de 15 min para 1h, 6h e 24h conforme o histórico fica disponível.',
   promise:'Jogos de até 60 dias com 300–50 mil online, menos de 50 milhões de visitas e aprovação mínima de 80%. Hits já consolidados ficam de fora.',
   stable:'Jogos com mais de 1 ano, mais de 1.000 jogadores e variação pequena. Os "clássicos que não morrem".',
   mine:'Seus jogos e os do estúdio, configurados em config/my_games.json.',
@@ -138,19 +138,19 @@ async function load(){
   $('#genre').innerHTML = '<option value="">Todos os gêneros</option>' + genres.map(g=>`<option>${esc(g)}</option>`).join('');
   const hours = Math.round((DATA.updatedAt - DATA.firstRun)/36e5);
   const rising = DATA.games.filter(g=>g.g24!=null).sort((a,b)=>b.g24-a.g24)[0];
-  const burst = DATA.games.filter(g=>g.explosionScore!=null).sort((a,b)=>b.explosionScore-a.explosionScore)[0];
+  const burst = DATA.games.map(withBurstMetrics).filter(Boolean).sort((a,b)=>b.burstScore-a.burstScore)[0];
   const burstReady = DATA.cadence?.explosionReady || DATA.games.some(g=>g.g1!=null && g.persistence!=null);
   const cadenceText = DATA.cadence?.samples2h == null ? 'aguardando novas coletas' : `${DATA.cadence.samples2h}/${DATA.cadence.targetSamples2h||9} coletas nas últimas 2h`;
   const newest = DATA.games.filter(g=>g.ageDays<=60).sort((a,b)=>b.playing-a.playing)[0];
   $('#tiles').innerHTML = [
     ['Online agora', fmt(DATA.platformCCU), 'soma dos mais jogados'],
     ['Jogos rastreados', fmt(DATA.games.length), `${DATA.games.filter(g=>g.mine).length} seus`],
-    ['Sinal mais forte', burst ? esc(burst.name) : '—', burst ? `índice ${burst.explosionScore} · +${fmt(burst.gain1)} em 1h` : burstReady ? 'nenhum sinal no momento' : `calibrando · ${cadenceText}`],
+    ['Sinal mais forte', burst ? esc(burst.name) : '—', burst ? `índice ${burst.burstScore} · +${fmt(burst.burstGain)} em ${burst.burstStage}` : burstReady ? 'nenhum sinal no momento' : `calibrando · ${cadenceText}`],
     ['Maior alta 24h', rising ? esc(rising.name) : '—', rising ? `+${rising.g24}% · ${fmtK(rising.playing)} online` : 'aguardando 48h de dados'],
     ['Novato em destaque', newest ? esc(newest.name) : '—', newest ? `${age(newest.ageDays)} de vida · ${fmtK(newest.playing)} online` : ''],
     ['Radar ativo há', hours < 48 ? hours+' h' : Math.round(hours/24)+' dias', `${DATA.runs} coletas`],
   ].map(([k,v,s])=>`<div class="tile"><div class="k">${k}</div><div class="v" style="font-size:${v.length>18?15:22}px">${v}</div><div class="s">${s}</div></div>`).join('');
-  if (!burstReady) { $('#notice').style.display='block'; $('#notice').textContent = `“Explodindo” está calibrando: ${cadenceText}. São necessárias coletas regulares de 15 em 15 minutos para comparar as duas últimas janelas de 1h.`; }
+  if (!burstReady) { $('#notice').style.display='block'; $('#notice').textContent = `“Explodindo” está calibrando o sinal confirmado de 1h: ${cadenceText}. Enquanto isso, a aba já mostra pré-sinais fortes de 15 min.`; }
   else if (hours < 48) { $('#notice').style.display='block'; $('#notice').textContent = `“Explodindo” já está calibrado. Visitas/24h precisam de 24h, crescimento em 24h de 48h e o comparativo de 7 dias de 14 dias.`; }
   $('#nav').innerHTML = VIEWS.map(([k,l])=>`<button data-v="${k}" class="${k===view?'on':''}">${l}</button>`).join('');
   $('#nav').onclick = e => { const b=e.target.closest('button'); if(!b) return; view=b.dataset.v; sortKey=null; document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('on',x===b)); render(); };
@@ -160,8 +160,26 @@ async function load(){
   render();
 }
 
-function gKey(){ return view==='burst'?'g1':period===24?'g24':'g7'; }
+function hasMetric(key){ return DATA.games.some(g=>g[key]!=null); }
+function risingKey(){
+  const target = period===24 ? 'g24' : 'g7';
+  if (hasMetric(target)) return target;
+  return ['g6','g1','g15'].find(hasMetric) || target;
+}
+function gKey(){ return view==='burst'?'burstGrowth':view==='rising'?risingKey():period===24?'g24':'g7'; }
 function vKey(){ return period===24?'visits24':'visits7'; }
+function metricWindow(key){ return ({g15:'15 min',g1:'1h',g6:'6h',g24:'24h',g7:'7d',burstGrowth:'sinal'})[key] || ''; }
+function clamp01(n){ return Math.max(0,Math.min(1,n)); }
+
+function withBurstMetrics(g){
+  if (g.explosionScore != null) return {...g,burstScore:g.explosionScore,burstGrowth:g.g1,burstGain:g.gain1,burstStage:'1h',burstPreliminary:false};
+  const preliminary = g.g15 != null && g.g15 >= 10 && (g.gain15 || 0) >= 500
+    && g.playing >= 1000 && (g.persistence || 0) >= 50;
+  if (!preliminary) return null;
+  const quality = g.likeRatio == null ? .5 : clamp01((g.likeRatio-70)/25);
+  const score = Math.round(100*(.35*clamp01(g.g15/50)+.25*clamp01(g.gain15/5000)+.20*clamp01(g.persistence/100)+.10*clamp01((g.shelfBreadth||0)/5)+.10*quality));
+  return {...g,burstScore:score,burstGrowth:g.g15,burstGain:g.gain15,burstStage:'15 min',burstPreliminary:true};
+}
 function isEstablishedHit(g){
   return g.visits >= 100000000 || g.playing >= 100000;
 }
@@ -191,11 +209,14 @@ function updateNotice(){
   const burstReady = DATA.cadence?.explosionReady || DATA.games.some(g => g.g1 != null && g.persistence != null);
   if (view === 'burst' && !burstReady) {
     const samples = DATA.cadence?.samples2h;
-    message = `“Explodindo” está calibrando: ${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}. São necessárias coletas regulares para comparar as duas janelas de 1h.`;
+    message = `Pré-sinais de 15 min já estão ativos. O sinal confirmado de 1h ainda está calibrando: ${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}.`;
   } else if (view === 'new') {
     message = 'Uma entrada permanece por 24 horas. Jogos já consolidados (100 mi de visitas ou 100 mil online) ficam de fora.';
   } else if (view === 'rising' && !any(period === 24 ? 'g24' : 'g7')) {
-    message = period === 24 ? '“Subindo · 24h” precisa de cerca de 48 horas de histórico.' : '“Subindo · 7 dias” precisa de cerca de 14 dias de histórico.';
+    const fallback = metricWindow(risingKey());
+    message = period === 24
+      ? `Prévia ativa com crescimento de ${fallback}; a comparação definitiva de 24h substitui esta coluna após cerca de 48 horas.`
+      : `Prévia ativa com crescimento de ${fallback}; a comparação definitiva de 7 dias substitui esta coluna após cerca de 14 dias.`;
   } else if (view === 'stable' && !any('g7')) {
     message = '“Estáveis” só classifica jogos depois de 14 dias, quando já existe uma comparação real entre duas janelas de 7 dias.';
   } else if (view === 'promise' && !any('g24')) {
@@ -215,10 +236,10 @@ function selectGames(){
   const gk = gKey();
   switch(view){
     case 'top': gs.sort((a,b)=>b.playing-a.playing); break;
-    case 'burst': gs = gs.filter(g=>g.explosionScore!=null).sort((a,b)=>b.explosionScore-a.explosionScore || b.gain1-a.gain1); break;
+    case 'burst': gs = gs.map(withBurstMetrics).filter(Boolean).sort((a,b)=>b.burstScore-a.burstScore || b.burstGain-a.burstGain); break;
     case 'new': gs = gs.filter(isNewOnRadar).sort((a,b)=>(b.shelfNewAt??b.firstSeen??0)-(a.shelfNewAt??a.firstSeen??0) || b.playing-a.playing); break;
     case 'visits': gs.sort((a,b)=>b.visits-a.visits); break;
-    case 'rising': gs = gs.filter(g=>g[gk]!=null && (g.avg24??0)>=200).sort((a,b)=>b[gk]-a[gk]); break;
+    case 'rising': gs = gs.filter(g=>g[gk]!=null && (g.avg24??g.playing)>=200).sort((a,b)=>b[gk]-a[gk]); break;
     case 'promise': gs = gs.filter(isPromise).map(g=>({...g, score:promiseScore(g)})).sort((a,b)=>b.score-a.score); break;
     case 'stable': gs = gs.filter(g=>g.ageDays>=365 && g.playing>=1000 && g.g7!=null && Math.abs(g.g7)<15).sort((a,b)=>b.playing-a.playing); break;
     case 'mine': gs = gs.filter(g=>g.mine).sort((a,b)=>b.playing-a.playing); break;
@@ -239,9 +260,10 @@ const COLS = [
   {k:'__v', l:'Visitas/', f:g=>fmtK(g[vKey()])},
   {k:'likeRatio', l:'👍', cls:'hide-m', f:g=>g.likeRatio==null?'—':g.likeRatio+'%'},
   {k:'ageDays', l:'Idade', f:g=>age(g.ageDays)},
-  {k:'gain1', l:'Ganho 1h', only:'burst', f:g=>`<b>${g.gain1>0?'+':''}${fmt(g.gain1)}</b>`},
+  {k:'burstGain', l:'Ganho', only:'burst', f:g=>`<b>${g.burstGain>0?'+':''}${fmt(g.burstGain)}</b>`},
+  {k:'burstStage', l:'Janela', only:'burst', f:g=>`<span class="badge ${g.burstPreliminary?'flat':'up'}">${g.burstPreliminary?'pré-sinal · ':''}${g.burstStage}</span>`},
   {k:'share', l:'Mercado', only:'burst', cls:'hide-m', f:g=>g.share==null?'—':g.share.toLocaleString('pt-BR',{maximumFractionDigits:3})+'%'},
-  {k:'explosionScore', l:'Índice', only:'burst', f:g=>`<b>${fmt(g.explosionScore)}</b>`},
+  {k:'burstScore', l:'Índice', only:'burst', f:g=>`<b>${fmt(g.burstScore)}</b>`},
   {k:'shelfBreadth', l:'Prateleiras', only:'new', f:g=>fmt(g.shelfBreadth)},
   {k:'bestRank', l:'Melhor posição', only:'new', f:g=>g.bestRank==null?'—':'#'+fmt(g.bestRank)},
   {k:'rankDelta', l:'Avanço', only:'new', f:g=>g.rankDelta==null?'—':(g.rankDelta>0?'+':'')+fmt(g.rankDelta)},
@@ -254,7 +276,8 @@ function render(){
   updateNotice();
   $('#period').style.visibility = (view==='burst' || view==='new') ? 'hidden' : 'visible';
   const gs = selectGames();
-  const cols = COLS.filter(c=>!c.only || c.only===view).map(c=>({...c, k: c.k==='__g'?gKey():c.k==='__v'?vKey():c.k, l: c.k==='__v'?('Visitas/'+(period===24?'24h':'7d')):c.k==='__g'?('Cresc. '+(view==='burst'?'1h':period===24?'24h':'7d')):c.l}));
+  const activeGrowth = gKey();
+  const cols = COLS.filter(c=>!c.only || c.only===view).map(c=>({...c, k: c.k==='__g'?activeGrowth:c.k==='__v'?vKey():c.k, l: c.k==='__v'?('Visitas/'+(period===24?'24h':'7d')):c.k==='__g'?('Cresc. '+metricWindow(activeGrowth)):c.l}));
   if (!gs.length){
     let msg = 'Nenhum jogo aqui ainda.';
     if (view==='mine') msg = 'Nenhum jogo seu configurado ainda. Abra o arquivo <code>config/my_games.json</code> no GitHub e cole os links dos seus jogos (ou o ID do seu usuário / do grupo Papanoobhy). Na próxima coleta eles aparecem aqui. 🐱';
@@ -262,18 +285,18 @@ function render(){
       const ready = DATA.cadence?.explosionReady || DATA.games.some(g=>g.g1!=null && g.persistence!=null);
       const samples = DATA.cadence?.samples2h;
       msg = ready
-        ? 'Nenhum jogo atingiu agora todos os critérios do sinal: +10%, +500 jogadores em 1h, ao menos 1.000 online e 75% de persistência. ⚡'
-        : `O sinal está calibrando: ${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}. ⚡`;
+        ? 'Nenhum jogo atingiu agora todos os critérios do sinal confirmado de 1h ou do pré-sinal de 15 min. ⚡'
+        : `Nenhum pré-sinal atingiu agora +10%, +500 jogadores em 15 min, ao menos 1.000 online e 50% de persistência. O sinal de 1h segue calibrando (${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)}). ⚡`;
     }
     else if (view==='new') msg = 'Nenhum jogo emergente apareceu ou reapareceu nas prateleiras nas últimas 24 horas. 🛰️';
-    else if (view==='rising') msg = period===24 ? 'O crescimento de 24h estará disponível após cerca de 48 horas de histórico. ⏳' : 'O crescimento de 7 dias estará disponível após cerca de 14 dias de histórico. ⏳';
+    else if (view==='rising') msg = 'Ainda não há nem uma comparação curta disponível. Aguarde a próxima coleta de 15 minutos. ⏳';
     else if (view==='promise') msg = 'Nenhum jogo atende agora aos critérios de promessa: até 60 dias, entre 300 e 50 mil online, menos de 50 milhões de visitas e ao menos 80% de aprovação. 🌱';
     else if (view==='stable') msg = 'A classificação de estabilidade estará disponível após cerca de 14 dias de histórico. 🏛️';
     $('#tbl').innerHTML = `<tr><td class="empty l">${msg}</td></tr>`; return;
   }
   const head = '<tr><th class="rank">#</th>' + cols.map(c=>`<th class="${c.left?'l ':''}${c.cls||''} ${sortKey===c.k?'sorted':''}" data-k="${c.k}">${c.l}${sortKey===c.k?(sortDir<0?' ↓':' ↑'):''}</th>`).join('') + '</tr>';
   const rows = gs.map((g,i)=>`<tr class="g" data-u="${g.u}"><td class="rank">${i+1}</td>` + cols.map(c=>{
-    if (c.left) return `<td class="l"><div class="game">${g.icon?`<img src="${g.icon}" loading="lazy" alt="">`:'<div class="ph"></div>'}<div><div class="n">${esc(g.name)}${g.mine?'<span class="chip mine">meu</span>':''}${g.explosionScore!=null?'<span class="chip">⚡ '+g.explosionScore+'</span>':''}${g.shelfNew?'<span class="chip">novo no radar</span>':''}${g.lists.includes('up-and-coming')?'<span class="chip">🌱 roblox</span>':''}</div><div class="c">${esc(g.creator)}${g.verified?' ✓':''}</div></div></div></td>`;
+    if (c.left) return `<td class="l"><div class="game">${g.icon?`<img src="${g.icon}" loading="lazy" alt="">`:'<div class="ph"></div>'}<div><div class="n">${esc(g.name)}${g.mine?'<span class="chip mine">meu</span>':''}${g.burstScore!=null?`<span class="chip">${g.burstPreliminary?'👀':'⚡'} ${g.burstScore}</span>`:g.explosionScore!=null?'<span class="chip">⚡ '+g.explosionScore+'</span>':''}${g.shelfNew?'<span class="chip">novo no radar</span>':''}${g.lists.includes('up-and-coming')?'<span class="chip">🌱 roblox</span>':''}</div><div class="c">${esc(g.creator)}${g.verified?' ✓':''}</div></div></div></td>`;
     return `<td class="${c.cls||''}">${c.f(g)}</td>`;
   }).join('') + '</tr>').join('');
   $('#tbl').innerHTML = head + rows;
