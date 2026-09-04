@@ -232,7 +232,9 @@ function metrics(hist, now, platform) {
   const gain6 = w6.currentAvg != null && w6.previousAvg != null ? Math.round(w6.currentAvg - w6.previousAvg) : null;
 
   const recent = h.filter(p => p[0] >= now - 2 * HOUR).slice(-5);
-  const regularRecent = recent.length >= 4 && recent.every((p, i) => i === 0 || p[0] - recent[i - 1][0] <= SAMPLE_INTERVAL * 2);
+  // O agendador gratuito do GitHub pode atrasar ou pular uma execução. Aceita até
+  // uma hora entre pontos para não apagar a persistência por uma falha isolada.
+  const regularRecent = recent.length >= 4 && recent.every((p, i) => i === 0 || p[0] - recent[i - 1][0] <= SAMPLE_INTERVAL * 4);
   const persistence = regularRecent
     ? Math.round(recent.slice(1).filter((p, i) => p[1] > recent[i][1]).length / (recent.length - 1) * 100)
     : null;

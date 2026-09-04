@@ -167,7 +167,7 @@ const VIEWS = [
 ];
 const HINTS = {
   top:'Jogos com mais gente online agora mesmo.',
-  burst:'Sinais antecipados: enquanto a janela de 1h calibra, mostra pré-sinais com alta de pelo menos 10% e 500 jogadores em 15 min. Depois, prioriza sinais confirmados e persistentes de 1h.',
+  burst:'Sinais antecipados com alta de pelo menos 10%, ganho de 500 jogadores e 1.000 online. Usa a melhor janela disponível entre 1h e 15 min e identifica quando a persistência ainda está recalibrando.',
   new:'Jogos que apareceram ou reapareceram nas prateleiras nas últimas 24 horas, excluindo hits com 100 milhões de visitas ou 100 mil jogadores online.',
   visits:'Jogos com mais visitas na história. "Visitas/24h" mostra quem está recebendo mais gente hoje.',
   rising:'Jogos cuja média de jogadores online mais cresceu. A janela evolui automaticamente de 15 min para 1h, 6h e 24h conforme o histórico fica disponível.',
@@ -231,12 +231,18 @@ function clamp01(n){ return Math.max(0,Math.min(1,n)); }
 
 function withBurstMetrics(g){
   if (g.explosionScore != null) return {...g,burstScore:g.explosionScore,burstGrowth:g.g1,burstGain:g.gain1,burstStage:'1h',burstPreliminary:false};
-  const preliminary = g.g15 != null && g.g15 >= 10 && (g.gain15 || 0) >= 500
-    && g.playing >= 1000 && (g.persistence || 0) >= 50;
-  if (!preliminary) return null;
+  const signals = [
+    g.g1 != null && g.gain1 != null ? {growth:g.g1,gain:g.gain1,stage:'1h'} : null,
+    g.g15 != null && g.gain15 != null ? {growth:g.g15,gain:g.gain15,stage:'15 min'} : null,
+  ].filter(Boolean);
+  const signal = signals.find(x=>x.growth>=10 && x.gain>=500) || signals[0];
+  const persistenceOk = g.persistence == null || g.persistence >= 50;
+  if (!signal || signal.growth < 10 || signal.gain < 500 || g.playing < 1000 || !persistenceOk) return null;
   const quality = g.likeRatio == null ? .5 : clamp01((g.likeRatio-70)/25);
-  const score = Math.round(100*(.35*clamp01(g.g15/50)+.25*clamp01(g.gain15/5000)+.20*clamp01(g.persistence/100)+.10*clamp01((g.shelfBreadth||0)/5)+.10*quality));
-  return {...g,burstScore:score,burstGrowth:g.g15,burstGain:g.gain15,burstStage:'15 min',burstPreliminary:true};
+  const persistence = g.persistence == null ? .5 : clamp01(g.persistence/100);
+  const score = Math.round(100*(.35*clamp01(signal.growth/50)+.25*clamp01(signal.gain/5000)+.20*persistence+.10*clamp01((g.shelfBreadth||0)/5)+.10*quality));
+  const partial = g.persistence == null;
+  return {...g,burstScore:score,burstGrowth:signal.growth,burstGain:signal.gain,burstStage:signal.stage+(partial?' parcial':''),burstPreliminary:true};
 }
 function isEstablishedHit(g){
   return g.visits >= 100000000 || g.playing >= 100000;
@@ -267,7 +273,10 @@ function updateNotice(){
   const burstReady = DATA.cadence?.explosionReady || DATA.games.some(g => g.g1 != null && g.persistence != null);
   if (view === 'burst' && !burstReady) {
     const samples = DATA.cadence?.samples2h;
-    message = `Pré-sinais de 15 min já estão ativos. O sinal confirmado de 1h ainda está calibrando: ${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}.`;
+    const activeWindow = hasMetric('g1') ? '1h' : hasMetric('g15') ? '15 min' : null;
+    message = activeWindow
+      ? `Sinais parciais de ${activeWindow} estão ativos. A persistência está recalibrando após falhas de horário (${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}).`
+      : `O sinal está aguardando uma nova comparação (${samples==null?'sem coletas recentes':samples+'/'+(DATA.cadence.targetSamples2h||9)+' coletas nas últimas 2h'}).`;
   } else if (view === 'new') {
     message = 'Uma entrada permanece por 24 horas. Jogos já consolidados (100 mi de visitas ou 100 mil online) ficam de fora.';
   } else if (view === 'rising' && !any(period === 24 ? 'g24' : 'g7')) {
@@ -364,7 +373,7 @@ function render(){
       const samples = DATA.cadence?.samples2h;
       msg = ready
         ? 'Nenhum jogo atingiu agora todos os critérios do sinal confirmado de 1h ou do pré-sinal de 15 min. ⚡'
-        : `Nenhum pré-sinal atingiu agora +10%, +500 jogadores em 15 min, ao menos 1.000 online e 50% de persistência. O sinal de 1h segue calibrando (${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)}). ⚡`;
+        : `Nenhum sinal parcial atingiu agora +10%, +500 jogadores e ao menos 1.000 online na melhor janela disponível. A persistência segue recalibrando (${samples==null?'aguardando novas coletas':samples+'/'+(DATA.cadence.targetSamples2h||9)}). ⚡`;
     }
     else if (view==='new') msg = 'Nenhum jogo emergente apareceu ou reapareceu nas prateleiras nas últimas 24 horas. 🛰️';
     else if (view==='rising') msg = 'Ainda não há nem uma comparação curta disponível. Aguarde a próxima coleta de 15 minutos. ⏳';
